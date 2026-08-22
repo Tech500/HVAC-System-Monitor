@@ -38,7 +38,7 @@ Place these **three files** in the same folder as your `.ino` or `main.cpp`:
 |---|---|
 | `boards.h` | Ebyte board pin definitions |
 | `utilities.h` | SX1262 hardware mapping (DIO1 = GPIO33) |
-| `sx1262_commands.h` | Semtech low-level command set (SetRxDutyCycle, IRQ ops, etc.) |
+| `sx1262_Commands.h` | Semtech low-level command set (SetRxDutyCycle, IRQ ops, etc.) |
 
 ### Sketch Folder Placement
 
