@@ -123,8 +123,7 @@ Before entering deep sleep, GPIO16 must be placed into the RTC domain:
 ```cpp
 rtc_gpio_init(GPIO_NUM_16);
 rtc_gpio_set_direction(GPIO_NUM_16, RTC_GPIO_MODE_INPUT_ONLY);
-rtc_gpio_pullup_en(GPIO_NUM_16);     // or pulldown_en() depending on inverter polarity
-
+rtc_gpio_pulldown_en(GPIO_NUM_16);     
 esp_sleep_enable_ext0_wakeup(GPIO_NUM_16, 1);   // or 0 depending on DIO1 polarity
 ```
 
