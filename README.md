@@ -4,7 +4,7 @@
 
 ### *LoRa's only job is to wake the MCU.*
 
-This open-source project demonstrates how to build an **ultra-low-power LoRa wake receiver** using:
+This open-source project demonstrates how to build an **ultra-low-power LoRa wake-on-radio receiver** using:
 
 - The **built-in SX1262** LoRa transceiver on the EoRa-S3-900TB
 - **RxDutyCycle** (Semtech Wake-On-Radio mode)
