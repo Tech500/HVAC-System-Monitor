@@ -1,4 +1,4 @@
-# Ultra-Low-Power LoRa WOR Receiver
+# Ultra-Low-Power LoRa WOR BME280 Node
 
 ### SX1262 RxDutyCycle + EoRa-S3-900TB (ESP32-S3)
 
