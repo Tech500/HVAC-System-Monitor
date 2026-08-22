@@ -57,6 +57,7 @@ As long as these three files remain in the same folder as the sketch, the projec
 This project must be compiled using ESP32 Arduino Core 3.3.10. Earlier or later versions may:
 
 - break EXT0 wake behavior
+- Break ESP-NOW
 - change RTC GPIO handling
 - alter deep-sleep current
 - modify SX1262 SPI timing
