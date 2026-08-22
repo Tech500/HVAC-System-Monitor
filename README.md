@@ -131,8 +131,7 @@ If `rtc_gpio_init()` is missing, EXT0 will never wake the MCU.
 
 ---
 
-## Power Profile (Three-Segment Model — Corrected)
-
+## Power Profile (Three-Segment Model)
 These values describe radio behavior only during the RxDutyCycle WOR pattern, measured using the Nordic PPK2 grey-selection box averages.
 
 ### Sleep Segment — WOR Sleep Portion
@@ -164,13 +163,14 @@ This full-cycle average is the correct representation of WOR behavior.
 
 ## EoRa-S3-900TB Wake Behavior (Event-Driven)
 
-When WOR triggers:
+When WOR asserts DIO1:
 
 1. The MCU wakes
 2. Performs housekeeping
 3. Reads SX1262 IRQ flags
-4. Re-arms WOR
-5. Returns to sleep
+4. Reads and sends BME280 reading
+5. Re-arms WOR
+6. Returns to sleep
 
 Wake current is ~30 µA, but only during the short wake window.
 
