@@ -102,7 +102,7 @@ Semtech describes it as:
 5. If detected → assert DIO1
 6. MCU wakes via EXT0
 7. MCU reads and sends BME280 Readings to Inside Node via ESP-NOW
-8. MCU re-arms WOR and returns to sleep
+8. MCU re-arms RxDutyCycle and returns to sleep
 
 ### The Only Function of LoRa Here
 
