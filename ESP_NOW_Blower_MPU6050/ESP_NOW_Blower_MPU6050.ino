@@ -2,7 +2,7 @@
    ESP_NOW_Blower_MPU6050.ino
    June 2026
    
-      --- CHANGE LOG (July 12, 2026) ---
+      --- Update (July 12, 2026) ---
    NVS persistence added for dailyTotalMinutes. This node is battery
    powered, so a battery change / brownout previously wiped the plain
    RAM `dailyTotalMinutes` variable back to 0, and the receiver would
