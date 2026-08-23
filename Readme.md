@@ -1,4 +1,4 @@
-# HVAC System Monitor (Successor to SM‑IV)
+# HVAC System Monitor (Successor to Heating System Monitor IV)
 
 This repository contains a three‑node HVAC monitoring system designed as the successor to the Heating System Monitor IV project. It uses:
 
