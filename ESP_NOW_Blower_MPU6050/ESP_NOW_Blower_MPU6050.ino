@@ -1,29 +1,8 @@
-/* Heating System Monitor IV
+/* 
    ESP_NOW_Blower_MPU6050.ino
    June 2026
-   ESP-NOW, Verified ESP32 Core 3.3.10
-   MPU-6050 Accelerometer Vector Magnitude Variance Detection
-   I2C: SDA=GPIO5  SCL=GPIO4  Address: 0x68
-   Calibrated: OFF variance ~TBD | ON variance ~TBD | Threshold: 500.0 (tune on bench)
-   OFF_CONFIRM reduced to 5 — mechanical stop is clean, no acoustic bleed
-   Elapsed time computed via NTP difftime() — no secondsCounter drift
-   On OFF confirmation: sends MSG_BLOWER_STATE then MSG_ALERT_FLAG to receiver
-   FTP default user:  admin  password:  admin
-
-   --- CHANGE LOG (this revision) ---
-   FTP RETR timeout fix: computeVariance() was blocking for
-   SAMPLE_COUNT * SAMPLE_DELAY_MS (64*5ms = 320ms) every single loop()
-   pass, unconditionally. That 320ms blackout meant ftpSrv.handleFTP()
-   never got serviced during an active data transfer, so FTP clients
-   timed out on RETR (LIST worked fine — it's fast, doesn't span the gap).
-   Fix: call ftpSrv.handleFTP() + server.handleClient() once per sample
-   INSIDE computeVariance()'s sampling loop, so FTP is serviced every
-   ~5ms instead of going dark for 320ms. Same interleave applied to the
-   two delay(500) blocks in detectBlower() after sendData()/sendAlert(),
-   since those are the same class of blocking gap, just rarer (only on
-   ON/OFF transitions).
-
-   --- CHANGE LOG (July 12, 2026) ---
+   
+      --- CHANGE LOG (July 12, 2026) ---
    NVS persistence added for dailyTotalMinutes. This node is battery
    powered, so a battery change / brownout previously wiped the plain
    RAM `dailyTotalMinutes` variable back to 0, and the receiver would
