@@ -1,50 +1,47 @@
 /*
-  BME280_Outside_Node_WOR.ino
+  BME280_Outside_Node.ino
 
-  HSM IV -- Outside sensor node
+  
   SX1262 RxDutyCycle WOR + ESP32-S3 deep sleep + BME280 + ESP-NOW
 
-  ESP32 Core 3.3.10 required.
+  ESP32 Core 3.3.10 required!!!
   Board: Ebyte EoRa-S3-900TB (utilities.h / boards.h provided)
 
   ARCHITECTURE
   ------------
   This node is event-driven and spends nearly all of its life in
   ESP32-S3 deep sleep. The SX1262 runs its own internal RxDutyCycle
-  loop (RX <-> Sleep) completely autonomously -- the host CPU does
+  loop (RX <-> Sleep) completely autonomously -- the host ESP32-S3 does
   not participate. When the hub's blower-triggered WOR transmitter
-  sends its 5000-symbol (5.12s) SF7/BW125/915MHz preamble + packet, the
+  sends its 512-symbol (5.12s) SF7/BW125/915MHz preamble + packet, the
   SX1262 receives it (Listen mode's built-in bounded preamble-detect
   extension -- 2*rxPeriod + sleepPeriod, datasheet sec 13.1.7 -- keeps
   it in RX until the frame completes), raises RX_DONE, and pulses DIO1 -- which is
-  wired to GPIO16 (rewired from the non-RTC-capable default DIO1
+  jumpered to GPIO16 (jumpered from the non-RTC-capable default DIO1
   pin) and configured as an EXT0 deep-sleep wake source.
 
   On wake:
-    1. Confirm RX_DONE (not a spurious wake).
-    2. Read BME280 (temp/humidity/pressure) + battery voltage.
-    3. Send the reading to the hub over ESP-NOW.
+    1. Confirm RX_Preamble (not a spurious wake).
+    2. Reads BME280 (temp/humidity/pressure)
+    3. Send the reading to the Receiver Node over ESP-NOW.
     4. Re-arm SX1262 RxDutyCycle + EXT0 wake.
-    5. Back to deep sleep.
+    5. EoRa-S3-90TB back to deep sleep.
 
   NO packet payload from the WOR trigger itself is ever read --
   the SX1262's only job here is to be the wake source. Content is
-  irrelevant; RX_DONE firing at all is the signal.
+  irrelevant; RX_Preaamble firing is the signal.
 
   ASSUMPTIONS TO VERIFY BEFORE FLASHING
   --------------------------------------
   1. BME280 I2C pins: GPIO48 (SDA) / GPIO47 (SCL), physical pins
      19/20 on the EoRa-S3-900TB's 26-pin header. These are wired
-     on a second I2C bus (Wire1) separate from the board's default
-     I2C_SDA/I2C_SCL (18/17 per utilities.h, used for OLED/PMU on
-     this board family). Change BME_SDA_PIN / BME_SCL_PIN below if
+     on a I2C bus (Wire) Change BME_SDA_PIN / BME_SCL_PIN below if
      your wiring differs.
-  2. HUB_MAC_ADDRESS below is a placeholder -- fill in the real
-     MAC address of the inside/hub ESP-NOW receiver.
-  3. Sync word (0x14/0x24) must match the hub's WOR transmitter.
-  4. Regulator mode is set to LDO (0x00) to match your prior CAD-8D
-     bring-up code. Change to DC-DC (0x01) if EoRa-S3-900TB has the
-     inductor populated and you've validated DC-DC mode.
+  2. Receiver Node_MAC_ADDRESS; below is a placeholder -- fill in the real
+     MAC address of the inside ESP-NOW receiver.
+  3. Sync word (0x14/0x24) must match the Inside receiver's WOR transmitter.
+  4. Regulator mode is set to LDO (0x00). 
+  bring-up code. 
 */
 
 #include <Arduino.h>
@@ -52,7 +49,7 @@
 #include <Wire.h>
 #define EoRa_PI_V1
 #include <boards.h>
-#include "SX1262_Commands.h"
+#include "SX1262_commands.h"
 #include <WiFi.h>
 #include <ESP32_NOW.h>
 #include <esp_now.h>
@@ -103,6 +100,14 @@
 #define BME_SCL 48
 
 const float BME280_OUTSIDE_TEMP_CAL_OFFSET_F = +5.54;
+
+// ============================================================
+// STATION ELEVATION -- for absolute -> relative (sea-level)
+// pressure reduction. Update if the Stevenson screen moves or
+// a surveyed elevation becomes available.
+// ============================================================
+const float STATION_ELEVATION_FT = 791.0f;
+const float STATION_ELEVATION_M = STATION_ELEVATION_FT * 0.3048f;  // 241.10 m
 
 uint8_t hubMAC[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
 
@@ -192,6 +197,19 @@ bool sendTelemetryViaESPNOW(float tempF, float humidity, float pressureHPa) {
   return sent;
 }
 
+// ============================================================
+// ABSOLUTE -> RELATIVE (SEA-LEVEL) PRESSURE
+//
+// Standard barometric formula (same reduction used by NWS/METAR
+// altimeter-style reporting). BME280 reports station (absolute)
+// pressure at the sensor; this corrects it to what the same
+// airmass would read at sea level, so it's comparable to
+// published weather pressure (e.g. KUMP METAR).
+// ============================================================
+float relativePressure(float stationPressureHPa, float elevationMeters) {
+  return stationPressureHPa / pow(1.0f - (elevationMeters / 44330.0f), 5.255f);
+}
+
 bool readAndSendBME280() {
   Wire.end();
   delay(50);
@@ -222,10 +240,12 @@ bool readAndSendBME280() {
     return false;
   }
 
-  Serial.printf("BME280 -> Temp: %.2f F  Hum: %.2f %%  Pres: %.4f hPa\n",
-                tempF, humidity, pressureHPa);
+  float relPressureHPa = relativePressure(pressureHPa, STATION_ELEVATION_M);
 
-  return sendTelemetryViaESPNOW(tempF, humidity, pressureHPa);
+  Serial.printf("BME280 -> Temp: %.2f F  Hum: %.2f %%  Pres: %.4f hPa\n",
+                tempF, humidity, relPressureHPa);
+
+  return sendTelemetryViaESPNOW(tempF, humidity, relPressureHPa);
 }
 
 // ============================================================
@@ -563,7 +583,7 @@ void setup() {
       Serial.printf("Woke on WOR! Pin 16: %d | SX1262 IRQ: 0x%04X\n", 
                     digitalRead(WAKEUP_PIN), irqStatus);
 
-      if (irqStatus & IRQ_PREAMBLE_DETECTED) {
+      if (irqStatus & IRQ_RX_DONE) {
         Serial.println("[WOR] Valid LoRa Packet Received!");
       } else if (irqStatus & (IRQ_PREAMBLE_DETECTED | IRQ_HEADER_VALID)) {
         Serial.println("[WOR] Preamble / Header Detected.");
@@ -573,8 +593,6 @@ void setup() {
     } else {
       Serial.println("[WOR] Hardware wake triggered via DIO1.");
     }
-
-   
 
     // Clear IRQ flags so DIO1 drops back LOW
     sxClearIrq();
