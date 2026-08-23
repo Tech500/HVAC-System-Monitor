@@ -1,7 +1,6 @@
-/* Heating System Monitor IV
-   ESP_NOW_Receiver.ino with temperature Offset + LoRa WOR trigger
+/* ESP_NOW_Receiver.ino with temperature Offset + LoRa WOR trigger
    July 19, 2026 (LoRa merge)
-   ESP32-NOW, ESP32 Core 3.3.10
+   ESP32-NOW, ESP32 Core 3.3.10  Required!!!
    Hub now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
    family as the outside sensor node.
 
@@ -11,29 +10,20 @@
    sendAlert()/delay(1000) poll, which only worked because that node used
    to be always-on and already listening).
 
-   *** HARDWARE CONFLICT -- MUST RESOLVE BEFORE FLASHING ***
-   Inside BME280 I2C is currently defined SDA=4, SCL=5. The EoRa-S3-900TB's
-   onboard SX1262 has RADIO_SCLK_PIN fixed at GPIO5 (see pin block below).
-   GPIO5 cannot be both the LoRa radio's SCLK and the inside BME280's I2C
-   clock. Reassign SCL (and confirm SDA is actually free too) to pins that
-   are genuinely unused by the radio/OLED/SD on your board -- check the
-   EoRa Pi user manual pinout. Placeholder pins below are marked TODO and
-   will NOT work as-is.
-
-   --- Prior update history preserved from original file ---
+     --- Prior update history preserved from original file ---
    (BME280I2C library, HW-394 3.3V rail fix, hypsometric sea-level pressure,
    alertFlag OFF-transition gating, NAN/"Offline" freshness handling,
    cycle-tracking / coast-time study -- all unchanged, see inline comments.)
 
    --- LoRa merge, July 19, 2026 ---
    Hub's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
-   outside node is the one sitting in startReceiveDutyCycleAuto(); the
-   hub only needs to wake its own sleeping radio (implicit SPI wake) and
-   fire a WOR packet, then go straight back to radio.sleep(). The outside
-   node's actual sensor reply comes back over ESP-NOW (MSG_BME280), same
-   as before -- only the trigger mechanism changed, not the reply path.
-   Link params (SF7 / BW500 / 2dBm) optimized for the real ~20ft link,
-   MUST MATCH the outside node's radio.begin() exactly.
+   outside node is the one sitting in RxDutyCycle; the
+   hub only needs to send the LoRa WOR wae preamble,collect blower runtimes,
+   and send data to Google Sheets The outside node's actual sensor reply 
+   comes back over ESP-NOW (MSG_BME280), same as before -- only the trigger 
+   mechanism changed, not the reply path.  Link params (SF7 / BW125 kHz / 2dBm) 
+   optimized for the real ~20ft link, MUST MATCH the outside node's radio.begin() 
+   exactly.
 */
 
 #include <Arduino.h>
