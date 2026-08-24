@@ -1,3 +1,8 @@
+// ======================================================
+//  SX1262_commands.h
+//  August 24, 2026 @ 10:26 EDT
+//  Ebyte, EoRa-S3-900TB tested and working
+// ======================================================
 #pragma once
 
 #include <Arduino.h>
