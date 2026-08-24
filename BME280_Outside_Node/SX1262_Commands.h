@@ -1,5 +1,5 @@
 // ======================================================
-//  SX1262_commands.h
+//  SX1262_commands.h ----Modified Samtech file
 //  August 24, 2026 @ 10:26 EDT
 //  Ebyte, EoRa-S3-900TB tested and working
 // ======================================================
