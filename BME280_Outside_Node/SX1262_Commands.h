@@ -222,15 +222,6 @@ inline void sxSetDio2AsRfSwitch() {
 // IRQ & RX DUTY CYCLE (WOR)
 // ============================================================
 
-// --- GET IRQ FUNCTION ---
-// Semtech GetIrqStatus (0x12): opcode, 1 status byte, 2 IRQ bytes (MSB, LSB).
-// MUST use radioSPI (the FSPI bus actually wired to the radio via
-// radioSPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN)
-// in setup()) and the same beginTransaction/SPISettings framing as every
-// other command in this file. The previous version called the bare
-// default `SPI` object, which is never begin()'d anywhere in this sketch
-// -- it clocks an unwired peripheral, so it always read back 0x0000
-// regardless of BUSY/DIO1 timing.
 inline uint16_t sxGetIrq() {
   uint8_t raw[2] = {0, 0};
   sxReadCommand(SX126X_CMD_GET_IRQ, raw, 2);
@@ -239,7 +230,8 @@ inline uint16_t sxGetIrq() {
 }
 
 inline void sxSetStopRxTimerOnPreamble(bool stopOnPreamble) {
-  uint8_t param = stopOnPreamble ? 0x00 : 0x01; // 0x00 = Stop on Preamble Detect
+  // Datasheet 13.4.9: 0x01 = Stop timer on Preamble Detect, 0x00 = Stop on Header/Sync
+  uint8_t param = stopOnPreamble ? 0x01 : 0x00; 
   sxCommand(SX126X_CMD_SET_STOP_RX_TIMER_ON_PREAMBLE, &param, 1);
 }
 
@@ -260,6 +252,7 @@ inline void sxConfigureRxDutyCycleIrq() {
 
   sxCommand(SX126X_CMD_SET_DIO_IRQ, buffer, 8);
 }
+
 inline void sxSetSyncWordPrivate() {
   sxWriteRegister(REG_SYNC_WORD_MSB, 0x00);
   sxWriteRegister(REG_SYNC_WORD_LSB, 0x12);
@@ -318,5 +311,5 @@ inline void initRadio() {
   sxConfigureRxDutyCycleIrq();
   
   // 8. Clear startup IRQs
-  sxClearIrq();
+  //sxClearIrq();
 }
