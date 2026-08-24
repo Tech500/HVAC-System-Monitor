@@ -13,14 +13,14 @@ This repository contains a three‑node HVAC monitoring system designed as the s
    - BME280 outdoor readings  
    - ESP‑NOW TX → Receiver Node  
 
-2. **Receiver Node (Indoor BME280 + Aggregator + Google Sheets)**  
-   - ESP‑NOW RX (outdoor BME280 + blower state)  
+2. **Receiver Node (Indoor BME280 + Data collector + Google Sheets)**  
+   - ESP‑NOW TX/RX (outdoor BME280 Node + Blower Node)  
    - Indoor BME280 readings  
    - Initiates WOR wake cycle  
    - Uploads combined HVAC data to Google Sheets  
 
 3. **Blower Node (MPU6050 Vibration Sensing)**  
-   - Detects blower ON/OFF via vibration  
+   - Detects blower ON/OFF via variance threshold, vibration  
    - ESP‑NOW TX → Receiver Node  
    - No electrical hookup to HVAC wiring  
 
