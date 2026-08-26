@@ -1,7 +1,7 @@
 
 # NPPK2 RxDutyCycle Observations
 
-## WOR EXT0 Wake on Radio
+## EXT0 Wake On Radio (WOR)
 ![WOR Wakeup](./Images/WOR%20%20EXT0%20Wakeup.png)
 
 ## One Complete RxDutyCycle 
