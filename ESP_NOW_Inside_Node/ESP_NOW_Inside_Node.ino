@@ -580,7 +580,7 @@ void processIncomingPacket(const uint8_t *data, int len) {
 // Dedicated handler function called from loop()
 void processOneShotButton() {
   if (buttonPressed) {
-    Serial.println("[TEST] Manual button press -- forcing alertFlag cycle");
+    Serial.println("\n[TEST] Manual button press -- forcing alertFlag cycle");
     sendOutsideWakeRequest();
     //sendTenWakeRequests();
     // Clear flags to enforce one-shot execution
@@ -766,6 +766,7 @@ void loop() {
     getDateTime();
     displayData();
     logData();
+    delay(500);
     sendGoogleSheetsData();
     googleSheetsSent = true;
 
@@ -845,6 +846,7 @@ void sendDataToServer(String updateTime, float outT, float inT, float inHum,
   } else {
     Serial.println("\n Secure connection failed.");
   }
+  alertFlag = false;
 }
 
 // ─── Local File Logging ───────────────────────────────────────────────────────
