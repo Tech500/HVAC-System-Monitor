@@ -49,8 +49,6 @@ HVAC_System_Monitor/
     ├── utilities.h
     └── README.md
 
----
-
 ## Acknowledgements
 
 This project was the result of a collaborative engineering effort involving both hands-on
@@ -82,9 +80,7 @@ design, firmware integration, measurements, testing, and final engineering decis
 performed by the author, the insights provided by each AI assistant significantly accelerated
 development and helped improve the quality and accuracy of the final project.
 
-> *"Project not possible without everyone's help."*
-
----
+*"Project not possible without everyone's help."*
 
 ## License
 
