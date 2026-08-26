@@ -1,5 +1,5 @@
 /*  BME280_Outside_Node.ino
-  August 23, 2026 @ 10:26 EDT
+  August 26, 2026 @ 05:33 EDT
   ESP32 Core 3.3.10 Required!!! Earlier breaks compile!
 */
 
@@ -30,10 +30,16 @@
 #define BME_SCL_PIN 48
 #define BME_I2C_ADDR 0x76
 
-#define RXDC_RX_TICKS 2048UL
-#define RXDC_SLEEP_TICKS 5120UL
+//#define RXDC_RX_TICKS 2048UL
+//#define RXDC_SLEEP_TICKS 5120UL
 
-#define HUB_WIFI_CHANNEL 11
+#define RXDC_RX_TICKS       512UL     // 9 ms  (≈8.8 symbols)
+#define RXDC_SLEEP_TICKS 	63488UL     // 992. s
+
+uint8_t hubMAC[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
+
+uint8_t HUB_WIFI_CHANNEL = 11;
+uint8_t CHANNEL = 0;
 
 #define BME_SDA 47
 #define BME_SCL 48
@@ -46,14 +52,25 @@ const float BME280_OUTSIDE_TEMP_CAL_OFFSET_F = +5.54;
 const float STATION_ELEVATION_FT = 791.0f;
 const float STATION_ELEVATION_M = STATION_ELEVATION_FT * 0.3048f;
 
-uint8_t hubMAC[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
-
 BME280I2C bme;
 
+// ─── Struct Definitions ───
 enum MessageType : uint8_t {
   MSG_BME280 = 0,
   MSG_ALERT_FLAG = 1,
   MSG_BLOWER_STATE = 2
+};
+
+struct __attribute__((packed)) AlertFlagPacket {
+  MessageType type;
+  bool alert;
+};
+
+struct __attribute__((packed)) BlowerData {
+  MessageType type;
+  bool on;
+  float elapsedMinutes;
+  float dailyTotalMinutes;
 };
 
 struct __attribute__((packed)) BME280Data {
@@ -63,10 +80,17 @@ struct __attribute__((packed)) BME280Data {
   float pressure;
 };
 
+// ─── 3. Receiver Global Tracking Registers ──────────────────────────────────
+bool alertFlag = false;          // Global state updated by MSG_ALERT_FLAG
+bool blowerIsOn = false;         // Global state updated by MSG_BLOWER_STATE
+float globalTemp = NAN;          // Global state updated by MSG_BME280
+float globalHumidity = NAN;
+float globalPressure = NAN;
+
 class HubPeer : public ESP_NOW_Peer {
 public:
-  HubPeer(const uint8_t *mac_addr, uint8_t channel)
-    : ESP_NOW_Peer(mac_addr, channel, WIFI_IF_STA, NULL) {}
+  HubPeer(const uint8_t *hubMAC, uint8_t CHANNEL)
+    : ESP_NOW_Peer(hubMAC, CHANNEL, WIFI_IF_STA, NULL) {}
 
   bool add_to_system() {
     return ESP_NOW_Peer::add();
@@ -79,41 +103,55 @@ public:
   }
 };
 
-bool sendTelemetryViaESPNOW(float tempF, float humidity, float pressureHPa) {
+// -------------------------------------------------------------
+// TRANSMIT ALERT FLAG TO HUB VIA ESP-NOW
+// -------------------------------------------------------------
+bool sendAlertFlagToReceiver(bool alertFlag) {
+  // 1. Ensure STA mode is active
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
 
-  esp_wifi_set_channel(HUB_WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  // 2. Fetch or assign a valid primary channel (1-14)
+  uint8_t primaryChannel = WiFi.channel();
+  if (primaryChannel == 0) primaryChannel = HUB_WIFI_CHANNEL > 0 ? HUB_WIFI_CHANNEL : 1;
+  
+  esp_wifi_set_channel(primaryChannel, WIFI_SECOND_CHAN_NONE);
 
   if (!ESP_NOW.begin()) {
-    Serial.println(F("ESP-NOW init failed"));
-    WiFi.mode(WIFI_OFF);
+    Serial.println(F("[ESP-NOW] Engine start failed"));
     return false;
   }
 
-  HubPeer localHub(hubMAC, HUB_WIFI_CHANNEL);
+  // 3. Create peer instance on valid primary channel
+  HubPeer localHub(hubMAC, primaryChannel);
+
+  // 4. Force-purge any lingering table registration for this MAC
+  localHub.remove_from_system();
+
+  // 5. Register peer
   if (!localHub.add_to_system()) {
-    Serial.println(F("Failed to bind hub peer"));
+    Serial.printf("[ESP-NOW Error] Peer add failed on Ch %d. Check hubMAC array.\n", primaryChannel);
     ESP_NOW.end();
-    WiFi.mode(WIFI_OFF);
     return false;
   }
 
-  BME280Data pkt;
-  pkt.type = MSG_BME280;
-  pkt.temperature = tempF;
-  pkt.humidity = humidity;
-  pkt.pressure = pressureHPa;
+  // 6. Send payload
+  AlertFlagPacket alertPacket = {};
+  alertPacket.type = MSG_ALERT_FLAG;
+  alertPacket.alert = alertFlag;
 
-  bool sent = localHub.sendData((uint8_t *)&pkt, sizeof(BME280Data));
-  Serial.printf("[ESP-NOW] Send to hub: %s\n", sent ? "OK" : "FAILED");
+  bool result = localHub.sendData((uint8_t *)&alertPacket, sizeof(AlertFlagPacket));
 
+  if (result) {
+    Serial.printf("[ESP-NOW] Sent alertFlag: %s\n", alertFlag ? "TRUE" : "FALSE");
+  } else {
+    Serial.println(F("[ESP-NOW] Transmit failed"));
+  }
+
+  // 7. Cleanup
   localHub.remove_from_system();
   ESP_NOW.end();
-  WiFi.mode(WIFI_OFF);
-  esp_wifi_stop();
 
-  return sent;
+  return result;
 }
 
 float relativePressure(float stationPressureHPa, float elevationMeters) {
@@ -156,6 +194,40 @@ bool readAndSendBME280() {
                 tempF, humidity, relPressureHPa);
 
   return sendTelemetryViaESPNOW(tempF, humidity, relPressureHPa);
+}
+
+bool sendTelemetryViaESPNOW(float tempF, float humidity, float pressureHPa) {
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+
+  esp_wifi_set_channel(HUB_WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+
+  if (!ESP_NOW.begin()) {
+    Serial.println(F("ESP-NOW init failed"));
+    WiFi.mode(WIFI_OFF);
+    return false;
+  }
+
+  HubPeer localHub(hubMAC, HUB_WIFI_CHANNEL);
+  if (!localHub.add_to_system()) {
+    Serial.println(F("Failed to bind hub peer"));
+    ESP_NOW.end();
+    WiFi.mode(WIFI_OFF);
+    return false;
+  }
+
+  BME280Data pkt;
+  pkt.type = MSG_BME280;
+  pkt.temperature = tempF;
+  pkt.humidity = humidity;
+  pkt.pressure = pressureHPa;
+
+  bool sent = localHub.sendData((uint8_t *)&pkt, sizeof(BME280Data));
+  Serial.printf("[ESP-NOW] Send to hub: %s\n", sent ? "OK" : "FAILED");
+
+  localHub.remove_from_system();
+ 
+  return sent;
 }
 
 #define BENCH_TESTING 1
@@ -272,20 +344,35 @@ void setup() {
     sxWaitBusy();
 
     uint16_t irqStatus = sxGetIrq();
-    Serial.printf("[WOR] Fast-wake active. SX1262 IRQ: 0x%04X\n", irqStatus);
+    Serial.printf("[WOR] Warm Boot active. SX1262 IRQ: 0x%04X\n", irqStatus);
     sxClearIrq();
+
+    // Send BME280 readings to Receiver Node
     readAndSendBME280();
+    delay(50);
+
+    // Send the Gatekeeper (alertFlag) to Receiver Node
+    sendAlertFlagToReceiver(true);
+    delay(50);
+
+    
+    
     isFullBoot = false;
+
+    ESP_NOW.end();
+    WiFi.mode(WIFI_OFF);
+    esp_wifi_stop();
+
     enterLowPowerWOR();
   }
 
   // -------------------------------------------------------------
   // 2. SLOW PATH: COLD BOOT / BUTTON / IDE FLASH / RECOVERY
   // -------------------------------------------------------------
-  Serial.println("[INIT] Full boot vector detected. Re-initializing SX1262 silicon...");
+  Serial.println("\n\n[INIT] Cold Boot active. Full initialization of the SX1262\n");
 
   if(wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
-    Serial.println("Cold Boot");
+    //Serial.println("Cold Boot");
     // Hard physical pulse on NRESET line to unlatch radio state machine
     initRadio();
     enterLowPowerWOR();
