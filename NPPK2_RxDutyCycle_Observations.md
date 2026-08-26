@@ -1,7 +1,7 @@
 
 # NPPK2 RxDutyCycle Observations
 
-## EXT0 Wake On Radio (WOR)
+## ESP32-S3 Wake On Radio (WOR)
 ![WOR Wakeup](./Images/WOR%20%20EXT0%20Wakeup.png)
 
 ## One Complete RxDutyCycle 
