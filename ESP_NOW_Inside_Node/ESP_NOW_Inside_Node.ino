@@ -1,6 +1,6 @@
 /* HVAC System Monitor
    ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
-   August 26, 2026 
+   August 26, 2026 @ 14:02 EDT
    ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
    Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
    as the BE280 Node.
@@ -54,7 +54,7 @@ bool powerOnReset = false;
 const String googleDeploymentID = "AKfycbz24Axc5Tcs4_bB6IWtMaCKp9BX6nsoZ11kprcCppLtSDnbyhW7F2MVX6roMZduF3x5sg";
 const String googleURL = "https://script.google.com/macros/s/" + googleDeploymentID + "/exec";
 
-uint8_t hubMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 }; // Target Hub MAC
+uint8_t hubMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };  // Target Hub MAC
 uint8_t senderBmeMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };
 uint8_t senderBlowerMAC[] = { 0x9C, 0x13, 0x9E, 0xF2, 0x2A, 0xB4 };
 
@@ -156,12 +156,13 @@ struct __attribute__((packed)) BlowerData {
 };
 
 // ─── 3. Receiver Global Tracking Registers ──────────────────────────────────
-bool alertFlag = false;   // Global state updated by MSG_ALERT_FLAG
+bool alertFlag = false;  // Global state updated by MSG_ALERT_FLAG
+volatile bool worCycleRequested = false;
 bool blowerIsOn = false;  // Global state updated by MSG_BLOWER_STATE
 float globalTemp = NAN;   // Global state updated by MSG_BME280
 float globalHumidity = NAN;
 float globalPressure = NAN;
-
+bool sendWOR = false;
 
 
 struct SensorRegisters {
@@ -247,7 +248,7 @@ bool sendAlertFlagToReceiver(bool alertFlag) {
   AlertFlagPacket alertPacket = {};
   alertPacket.type = MSG_ALERT_FLAG;
   alertPacket.alert = alertFlag;
-  
+
   bool result = bmeNode.sendData((uint8_t *)&alertPacket, sizeof(AlertFlagPacket));
 
   if (result) {
@@ -349,31 +350,19 @@ void setupLoRa() {
 // wakes the outside node's ESP32 via DIO1 -> EXT0. Outside node's actual
 // sensor reply still comes back over ESP-NOW (MSG_BME280), unchanged.
 void sendOutsideWakeRequest() {
-
-  // 1. Long WOR preamble
   radio.setPreambleLength(1200);
+  Serial.println(F("[LoRa] Sending 1200-symbol WOR preamble + 1-byte payload..."));
 
-  Serial.println(
-    F("[LoRa] Sending 1200-symbol WOR preamble + 1-byte payload..."));
-
-  // 2. One-byte payload
   uint8_t payload = 0x55;
-
   int state = radio.transmit(&payload, 1);
 
   if (state == RADIOLIB_ERR_NONE) {
     Serial.println(F("[LoRa] WOR packet sent OK"));
-
     radio.standby();
-
   } else {
-    Serial.printf(
-      "[LoRa] WOR send failed, code %d\n",
-      state);
+    Serial.printf("[LoRa] WOR send failed, code %d\n", state);
   }
-
-  alertFlag = true;
-  return;
+  // no flag side effect here anymore
 }
 
 void sendTenWakeRequests() {
@@ -508,86 +497,107 @@ String urlEncode(String str) {
 
 // ─── Packet Processing Pipeline ──────────────────────────────────────────────
 void processIncomingPacket(const uint8_t *data, int len) {
+  Serial.printf("\n>>> processIncomingPacket: len=%d  type=%d  sizeof(BlowerData)=%d\n",
+                len, data[0], sizeof(BlowerData));
   if (len < 1) return;
 
-  // Extract packet type from first byte
-  MessageType incomingType = static_cast<MessageType>(data[0]);
+  MessageType incomingType = (MessageType)data[0];
 
   switch (incomingType) {
+
+    case MSG_BLOWER_STATE:
+      if (len == sizeof(BlowerData)) {
+        BlowerData blowerPacket;
+        memcpy(&blowerPacket, data, sizeof(BlowerData));
+        blowerIsOn = blowerPacket.on;
+        Serial.printf("\n[Radio Link] Blower Update Caught -> State: %s  Elapsed: %.2f min  Daily(blower-side): %.2f min\n",
+                      blowerIsOn ? "ON" : "OFF",
+                      blowerPacket.elapsedMinutes,
+                      blowerPacket.dailyTotalMinutes);
+
+        elapsedMinutes = blowerPacket.elapsedMinutes;
+        sensordata.lastEventMinutes = blowerPacket.elapsedMinutes;
+
+        if (blowerPacket.on && !prevBlowerIsOn) {
+          cyclesToday++;
+          if (lastOffEpoch > 0) {
+            lastCoastMinutes = (double)(time(nullptr) - lastOffEpoch) / 60.0;
+          } else {
+            lastCoastMinutes = 0.0;
+          }
+          Serial.printf("[Cycle] #%d started. Coast (hold) before this cycle: %.1f min\n",
+                        cyclesToday, lastCoastMinutes);
+        }
+
+        if (!blowerPacket.on && prevBlowerIsOn) {
+          lastOffEpoch = time(nullptr);
+        }
+
+        if (!blowerPacket.on) {
+          dailyTotalMinutes += blowerPacket.elapsedMinutes;
+          sensordata.dailyTotalMinutes = dailyTotalMinutes;
+          if (cyclesToday > 0) {
+            avgCycleMinutes = dailyTotalMinutes / (double)cyclesToday;
+          }
+          Serial.printf("[Cycle] #%d complete. ON: %.2f min  Avg cycle today: %.2f min\n",
+                        cyclesToday, blowerPacket.elapsedMinutes, avgCycleMinutes);
+          alertFlag = true;
+          saveState();
+        }
+
+        prevBlowerIsOn = blowerPacket.on;
+      } else {
+        Serial.printf("\n\n Size Mismatch — BlowerData: Expected %d got %d bytes\n",
+                      sizeof(BlowerData), len);
+      }
+      break;
 
     // -------------------------------------------------------------
     // HANDLE MSG_ALERT_FLAG (2 Bytes)
     // -------------------------------------------------------------
+    // MSG_ALERT_FLAG handler
     case MSG_ALERT_FLAG:
       if (len == sizeof(AlertFlagPacket)) {
         AlertFlagPacket incomingPacket;
         memcpy(&incomingPacket, data, sizeof(AlertFlagPacket));
 
-        // Assign received value to receiver's global variable
         alertFlag = incomingPacket.alert;
 
         Serial.printf("\n[Radio Link] AlertFlag received: %s\n", alertFlag ? "TRUE" : "FALSE");
       }
       break;
 
-    // -------------------------------------------------------------
-    // HANDLE MSG_BME280 (13 Bytes)
-    // -------------------------------------------------------------
     case MSG_BME280:
       if (len == sizeof(BME280Data)) {
-        BME280Data pkt;
-        memcpy(&pkt, data, sizeof(BME280Data));
+        BME280Data bmePacket;
+        memcpy(&bmePacket, data, sizeof(BME280Data));
+        globalHumidity = bmePacket.humidity;
+        globalPressure = bmePacket.pressure;
+        globalTemp = bmePacket.temperature;
 
-        globalTemp = pkt.temperature;
-        globalHumidity = pkt.humidity;
-        globalPressure = pkt.pressure;
-
-        Serial.printf("\n[Radio Link] BME280 Rx -> Temp: %.2f°F  Hum: %.1f%%  Pres: %.2f hPa\n",
-                      globalTemp, globalHumidity, globalPressure);
-
-                    
+        Serial.printf("\n[Radio Link] BME280 Update -> Temp: %.2f F  Hum: %.1f%%  Pres: %.4f inHg\n",
+                      globalTemp, globalHumidity, globalPressure * 0.02953);
       } else {
-        Serial.printf("\n[Size Mismatch] BME280: Expected %d, got %d bytes\n",
+        Serial.printf("\n\n Size Mismatch — BmeData: Expected %d got %d bytes\n",
                       sizeof(BME280Data), len);
       }
       break;
 
-    // -------------------------------------------------------------
-    // HANDLE MSG_BLOWER_STATE (10 Bytes)
-    // -------------------------------------------------------------
-    case MSG_BLOWER_STATE:
-      if (len == sizeof(BlowerData)) {
-        BlowerData pkt;
-        memcpy(&pkt, data, sizeof(BlowerData));
-
-        blowerIsOn = pkt.on;
-
-        Serial.printf("\n[Radio Link] Blower Rx -> State: %s  Elapsed: %.2f min  Daily: %.2f min\n",
-                      blowerIsOn ? "ON" : "OFF", pkt.elapsedMinutes, pkt.dailyTotalMinutes);
-      } else {
-        Serial.printf("\n[Size Mismatch] BlowerData: Expected %d, got %d bytes\n",
-                      sizeof(BlowerData), len);
-      }
-      break;
-
     default:
-      Serial.printf("\n[Radio Link Warning] Unknown packet type ID: %d\n", data[0]);
+      Serial.printf("\n\n Unknown packet type: %d\n", data[0]);
       break;
   }
-  return;
 }
 
 // Dedicated handler function called from loop()
 void processOneShotButton() {
   if (buttonPressed) {
-    Serial.println("\n[TEST] Manual button press -- forcing alertFlag cycle");
+    Serial.println("\n[TEST] Manual button press -- forcing WOR cycle");
+    // sensor reply still comes back over ESP-NOW (MSG_BME280), unchanged.
     sendOutsideWakeRequest();
-    //sendTenWakeRequests();
-    // Clear flags to enforce one-shot execution
     buttonPressed = false;
   }
   delay(50);
-  return;
 }
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
@@ -726,12 +736,12 @@ void loop() {
   // ── Gatekeeper: alertFlag handler ────────────────────────────────────────
   if (alertFlag == true) {
     alertFlag = false;
-    digitalWrite(WRITE_LED_PIN, HIGH);  // writes starting
+    digitalWrite(WRITE_LED_PIN, HIGH);
 
     // LoRa WOR replaces the old ESP-NOW sendAlert()/delay(1000) poll --
     // the outside node is asleep between events now, so it can't answer
     // an ESP-NOW poll directly; it has to be woken via LoRa first.
-    //sendOutsideWakeRequest();
+    sendOutsideWakeRequest();
 
     // Outside node round trip: DIO1 wake -> ESP32 reboot -> setup() ->
     // radio init -> BME280 read -> WiFi reconnect -> ESP-NOW send. This
@@ -766,7 +776,6 @@ void loop() {
     getDateTime();
     displayData();
     logData();
-    delay(500);
     sendGoogleSheetsData();
     googleSheetsSent = true;
 
