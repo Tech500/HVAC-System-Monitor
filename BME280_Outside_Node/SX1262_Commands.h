@@ -1,8 +1,9 @@
-// ======================================================
-//  SX1262_commands.h ----Modified Samtech file
-//  August 24, 2026 @ 10:26 EDT
-//  Ebyte, EoRa-S3-900TB tested and working
-// ======================================================
+/*
+  SX1262_commands.h
+  August 2, 2026 @ 05:23 EDT
+  Custom --Modified Samtech's Low Level Commands
+*/
+
 #pragma once
 
 #include <Arduino.h>
@@ -69,8 +70,13 @@
 // Full cycle   ~= 112.0 ms
 // ============================================================
 
-#define RXDC_RX_TICKS       2048UL  
-#define RXDC_SLEEP_TICKS    5120UL  
+//#define RXDC_RX_TICKS       2048UL  [Github repo values]
+//#define RXDC_SLEEP_TICKS    5120UL  
+
+// Experimental tick vales
+
+#define RXDC_RX_TICKS       512UL  // 9 ms  (≈8.8 symbols)
+#define RXDC_SLEEP_TICKS  63488UL  // 5.057 s
 
 // ============================================================
 // SPI & LOW-LEVEL BUS
