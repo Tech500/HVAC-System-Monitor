@@ -1,13 +1,13 @@
 
 # NPPK2 RxDutyCycle Observations
 
-## Full RxDutyCycle Window
+## WOR EXT0 Wake on Radio
 ![WOR Wakeup](./Images/WOR%20%20EXT0%20Wakeup.png)
 
-## Full RxDutyCycle Window
+## One Complete RxDutyCycle 
 ![One RxDutyCycle](./Images/One%20RxDutyCycle.png)
 
-## RxDutyCycle Receive Segment
+## RxDutyCycle Active Segment
 ![RxDutyCycle Active](./Images/Active%20Segment.png)
 
 ## RxDutyCycle Sleep Segment
