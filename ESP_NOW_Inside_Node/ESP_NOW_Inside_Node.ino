@@ -1,29 +1,19 @@
-/* ESP_NOW_Receiver.ino with temperature Offset + LoRa WOR trigger
-   July 19, 2026 (LoRa merge)
-   ESP32-NOW, ESP32 Core 3.3.10  Required!!!
-   Hub now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
-   family as the outside sensor node.
-
-   Receives MSG_BLOWER_STATE from ESP_NOW_Blower node
-   Receives MSG_BME280 from ESP_NOW_BME280 node (outside node's ESP-NOW reply)
-   Sends LoRa WOR to wake the outside node (replaces the old ESP-NOW
-   sendAlert()/delay(1000) poll, which only worked because that node used
-   to be always-on and already listening).
-
-     --- Prior update history preserved from original file ---
-   (BME280I2C library, HW-394 3.3V rail fix, hypsometric sea-level pressure,
-   alertFlag OFF-transition gating, NAN/"Offline" freshness handling,
-   cycle-tracking / coast-time study -- all unchanged, see inline comments.)
+/* HVAC System Monitor
+   ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
+   August 26, 2026 
+   ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
+   Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
+   as the BE280 Node.
 
    --- LoRa merge, July 19, 2026 ---
-   Hub's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
-   outside node is the one sitting in RxDutyCycle; the
-   hub only needs to send the LoRa WOR wae preamble,collect blower runtimes,
-   and send data to Google Sheets The outside node's actual sensor reply 
-   comes back over ESP-NOW (MSG_BME280), same as before -- only the trigger 
-   mechanism changed, not the reply path.  Link params (SF7 / BW125 kHz / 2dBm) 
-   optimized for the real ~20ft link, MUST MATCH the outside node's radio.begin() 
-   exactly.
+   Inside Node's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
+   BME280 Node is the one sitting in rxDutyCycle.  Inside Node only needs 
+   to send Wake On Radio (WOR), Collect data, and Log data locally and to 
+   perpetual Google Sheet; sending a WOR Preamble on the Blower None's alertFlag, 
+   The BME280 Node's actual BME280 sensor readings, reply comes back over  ESP-NOW 
+   (MSG_BME280), only the trigger mechanism changed, not the reply path.  Link params 
+   (SF7 / BW5125 / 2dBm) optimized for the real ~20ft link,  MUST MATCH the BME280 
+   Node's radio.begin() exactly.
 */
 
 #include <Arduino.h>
@@ -45,39 +35,31 @@
 
 // ─── LoRa (EoRa-S3-900TB onboard SX1262) ─────────────────────────────────────
 #define EoRa_PI_V1
+#include "boards.h"
 #include <RadioLib.h>
 #include <SPI.h>
-
-// Local pin defines -- boards.h/utilities.h (Ebyte OEM files) intentionally
-// NOT included here. Their initBoard()/init chain was the confirmed source
-// of the check_i2c_driver_conflict crashes on the outside node -- same fix
-// applied here for consistency, since both boards share the identical
-// underlying conflict risk.
-#define RADIO_SCLK_PIN 5
-#define RADIO_MISO_PIN 3
-#define RADIO_MOSI_PIN 6
-#define RADIO_CS_PIN 7
-#define RADIO_DIO1_PIN 33
-#define RADIO_BUSY_PIN 34
-#define RADIO_RST_PIN 8
-#define BOARD_LED 37
-#define LED_ON HIGH
-#define LED_OFF LOW
 
 float radioFreq = 915.0;
 SX1262 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN);
 
 #define WRITE_LED_PIN 23  //LittleFS Status LED  ON = Writing
 
-const char *ssid = "ssid";
-const char *password = "password";
+const char *ssid = "R2D2";
+const char *password = "Sky7388500";
 
 //Flag to prevent reset
 bool powerOnReset = false;
 
 // ─── GOOGLE DEPLOYMENT ID ────────────────────────────────────────────────────
-const String googleDeploymentID = "Removed for security";
+const String googleDeploymentID = "AKfycbz24Axc5Tcs4_bB6IWtMaCKp9BX6nsoZ11kprcCppLtSDnbyhW7F2MVX6roMZduF3x5sg";
 const String googleURL = "https://script.google.com/macros/s/" + googleDeploymentID + "/exec";
+
+uint8_t hubMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 }; // Target Hub MAC
+uint8_t senderBmeMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };
+uint8_t senderBlowerMAC[] = { 0x9C, 0x13, 0x9E, 0xF2, 0x2A, 0xB4 };
+
+#define HUB_WIFI_CHANNEL 0
+#define CHANNEL 0
 
 #define TEST_BUTTON_PIN 16  // 3-wire module: VCC, GND, signal -- idles LOW, HIGH on press
 
@@ -146,30 +128,41 @@ unsigned long lastResetCheck = 0;
 const unsigned long checkInterval = 1000;  // Check every 1 second
 
 // ─── Message / Packet Structures ─────────────────────────────────────────────
+// ─── 1. Shared Message Types Enum ───────────────────────────────────────────
 enum MessageType : uint8_t {
   MSG_BME280 = 0,
   MSG_ALERT_FLAG = 1,
   MSG_BLOWER_STATE = 2
 };
 
-struct __attribute__((packed)) BlowerData {
-  MessageType type;
-  bool on;
-  float elapsedMinutes;
-  float dailyTotalMinutes;
-};
-
+// ─── 2. Receiver Packet Structures (Packed Byte Alignment) ──────────────────
 struct __attribute__((packed)) BME280Data {
-  MessageType type;
-  float temperature;
-  float humidity;
-  float pressure;
+  MessageType type;   // 1 byte
+  float temperature;  // 4 bytes
+  float humidity;     // 4 bytes
+  float pressure;     // 4 bytes (Total: 13 bytes)
 };
 
-struct __attribute__((packed)) AlertFlag {
-  MessageType type;
-  bool alert;
+struct __attribute__((packed)) AlertFlagPacket {
+  MessageType type;  // 1 byte
+  bool alert;        // 1 byte  (Total: 2 bytes)
 };
+
+struct __attribute__((packed)) BlowerData {
+  MessageType type;         // 1 byte
+  bool on;                  // 1 byte
+  float elapsedMinutes;     // 4 bytes
+  float dailyTotalMinutes;  // 4 bytes (Total: 10 bytes)
+};
+
+// ─── 3. Receiver Global Tracking Registers ──────────────────────────────────
+bool alertFlag = false;   // Global state updated by MSG_ALERT_FLAG
+bool blowerIsOn = false;  // Global state updated by MSG_BLOWER_STATE
+float globalTemp = NAN;   // Global state updated by MSG_BME280
+float globalHumidity = NAN;
+float globalPressure = NAN;
+
+
 
 struct SensorRegisters {
   float outsideTemp;
@@ -213,6 +206,7 @@ protected:
 
 // BME280 node — bidirectional (ESP-NOW reply path only now; wake trigger
 // moved to LoRa WOR, see sendOutsideWakeRequest())
+
 class BME280Peer : public ESP_NOW_Peer {
 public:
   BME280Peer(const uint8_t *mac_addr, uint8_t channel,
@@ -224,27 +218,53 @@ public:
     return ESP_NOW_Peer::add();
   }
 
+  bool remove_from_system() {
+    return ESP_NOW_Peer::remove();
+  }
+
+  bool sendData(const uint8_t *data, size_t len) {
+    return send(data, len);
+  }
+
 protected:
   void onReceive(const uint8_t *data, size_t len, bool broadcast) override {
     processIncomingPacket(data, (int)len);
   }
 };
 
-// ─── Hardware MAC Map ─────────────────────────────────────────────────────────
-uint8_t senderBlowerMAC[] = { 0x9C, 0x13, 0x9E, 0xF2, 0x2A, 0xB4 };
-// TODO: senderBmeMAC was the OLD always-on DevKit's WiFi MAC. The
-// EoRa-S3-900TB outside node is different hardware with its own MAC --
-// print WiFi.macAddress() on the new board and update this before the
-// hub will recognize its ESP-NOW replies.
-uint8_t senderBmeMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };
-#define CHANNEL 0
-
-HeatingSenderPeer blowerNode(senderBlowerMAC, CHANNEL, WIFI_IF_STA);
+// Global instance if needed persistently
 BME280Peer bmeNode(senderBmeMAC, CHANNEL, WIFI_IF_STA);
 
+
+bool sendAlertFlagToReceiver(bool alertFlag) {
+  BME280Peer bmeNode(senderBmeMAC, HUB_WIFI_CHANNEL);
+
+  if (!bmeNode.add_to_system()) {
+    Serial.println(F("[ESP-NOW] Failed to add hub peer"));
+    return false;
+  }
+
+  AlertFlagPacket alertPacket = {};
+  alertPacket.type = MSG_ALERT_FLAG;
+  alertPacket.alert = alertFlag;
+  
+  bool result = bmeNode.sendData((uint8_t *)&alertPacket, sizeof(AlertFlagPacket));
+
+  if (result) {
+    Serial.printf("[ESP-NOW] Sent alertFlag: %s\n", alertFlag ? "TRUE" : "FALSE");
+    Serial.println(alertFlag);
+  } else {
+    Serial.println(F("[ESP-NOW] Transmit failed"));
+  }
+
+  bmeNode.remove_from_system();
+
+  return result;
+}
+
+HeatingSenderPeer blowerNode(senderBlowerMAC, CHANNEL, WIFI_IF_STA);
+
 // ─── Global Tracking Registers ───────────────────────────────────────────────
-bool blowerIsOn = false;
-bool alertFlag = false;
 bool googleSheetsSent = false;
 
 double elapsedMinutes = 0.0;
@@ -259,11 +279,6 @@ int cyclesToday = 0;
 time_t lastOffEpoch = 0;
 double lastCoastMinutes = 0.0;
 double avgCycleMinutes = 0.0;
-
-// Outside BME280 registers -- NAN = "no fresh reading this cycle".
-float globalTemp = NAN;
-float globalHumidity = NAN;
-float globalPressure = NAN;
 float thermostatSetpoint = 75.0;
 
 // ─── Elevation / Sea-Level Pressure Conversion ───────────────────────────────
@@ -339,7 +354,7 @@ void sendOutsideWakeRequest() {
   radio.setPreambleLength(1200);
 
   Serial.println(
-    F("[LoRa] Sending 5000-symbol WOR preamble + 1-byte payload..."));
+    F("[LoRa] Sending 1200-symbol WOR preamble + 1-byte payload..."));
 
   // 2. One-byte payload
   uint8_t payload = 0x55;
@@ -356,6 +371,9 @@ void sendOutsideWakeRequest() {
       "[LoRa] WOR send failed, code %d\n",
       state);
   }
+
+  alertFlag = true;
+  return;
 }
 
 void sendTenWakeRequests() {
@@ -363,7 +381,7 @@ void sendTenWakeRequests() {
   const int NUM_WOR_TX = 10;
   const int DELAY_MS = 6000;
 
-  radio.setPreambleLength(5000);
+  radio.setPreambleLength(1200);
 
   Serial.println();
   Serial.println(F("========================================"));
@@ -378,8 +396,7 @@ void sendTenWakeRequests() {
     Serial.printf(
       "[LoRa] WOR TX %d of %d START\n",
       i + 1,
-      NUM_WOR_TX
-    );
+      NUM_WOR_TX);
 
     // Blocking transmit:
     // returns only after the complete WOR packet is sent.
@@ -388,23 +405,22 @@ void sendTenWakeRequests() {
     if (state == RADIOLIB_ERR_NONE) {
       Serial.printf(
         "[LoRa] WOR TX %d COMPLETE\n",
-        i + 1
-      );
+        i + 1);
     } else {
       Serial.printf(
         "[LoRa] WOR TX %d FAILED, code %d\n",
         i + 1,
-        state
-      );
+        state);
     }
-    while (DELAY_MS < 6000){
+    while (DELAY_MS < 6000) {
       // Return to standby, then immediately begin next TX.
       radio.standby();
       return;
-    }   
+    }
   }
   Serial.println(F("[LoRa] All 10 WOR transmissions complete."));
-}  
+  return;
+}
 
 // ─── NTP Init ────────────────────────────────────────────────────────────────
 void initNTP() {
@@ -492,92 +508,73 @@ String urlEncode(String str) {
 
 // ─── Packet Processing Pipeline ──────────────────────────────────────────────
 void processIncomingPacket(const uint8_t *data, int len) {
-  Serial.printf("\n>>> processIncomingPacket: len=%d  type=%d  sizeof(BlowerData)=%d\n",
-                len, data[0], sizeof(BlowerData));
   if (len < 1) return;
 
-  MessageType incomingType = (MessageType)data[0];
+  // Extract packet type from first byte
+  MessageType incomingType = static_cast<MessageType>(data[0]);
 
   switch (incomingType) {
 
-    case MSG_BLOWER_STATE:
-      if (len == sizeof(BlowerData)) {
-        BlowerData blowerPacket;
-        memcpy(&blowerPacket, data, sizeof(BlowerData));
-        blowerIsOn = blowerPacket.on;
-        Serial.printf("\n[Radio Link] Blower Update Caught -> State: %s  Elapsed: %.2f min  Daily(blower-side): %.2f min\n",
-                      blowerIsOn ? "ON" : "OFF",
-                      blowerPacket.elapsedMinutes,
-                      blowerPacket.dailyTotalMinutes);
-
-        elapsedMinutes = blowerPacket.elapsedMinutes;
-        sensordata.lastEventMinutes = blowerPacket.elapsedMinutes;
-
-        if (blowerPacket.on && !prevBlowerIsOn) {
-          cyclesToday++;
-          if (lastOffEpoch > 0) {
-            lastCoastMinutes = (double)(time(nullptr) - lastOffEpoch) / 60.0;
-          } else {
-            lastCoastMinutes = 0.0;
-          }
-          Serial.printf("[Cycle] #%d started. Coast (hold) before this cycle: %.1f min\n",
-                        cyclesToday, lastCoastMinutes);
-        }
-
-        if (!blowerPacket.on && prevBlowerIsOn) {
-          lastOffEpoch = time(nullptr);
-        }
-
-        if (!blowerPacket.on) {
-          dailyTotalMinutes += blowerPacket.elapsedMinutes;
-          sensordata.dailyTotalMinutes = dailyTotalMinutes;
-          if (cyclesToday > 0) {
-            avgCycleMinutes = dailyTotalMinutes / (double)cyclesToday;
-          }
-          Serial.printf("[Cycle] #%d complete. ON: %.2f min  Avg cycle today: %.2f min\n",
-                        cyclesToday, blowerPacket.elapsedMinutes, avgCycleMinutes);
-          alertFlag = true;
-          saveState();
-        }
-
-        prevBlowerIsOn = blowerPacket.on;
-      } else {
-        Serial.printf("\n\n Size Mismatch — BlowerData: Expected %d got %d bytes\n",
-                      sizeof(BlowerData), len);
-      }
-      break;
-
+    // -------------------------------------------------------------
+    // HANDLE MSG_ALERT_FLAG (2 Bytes)
+    // -------------------------------------------------------------
     case MSG_ALERT_FLAG:
-      // No longer sent by this hub (WOR replaces it) -- left in case the
-      // outside node or a future node still emits one.
-      if (len == sizeof(AlertFlag)) {
-        AlertFlag alertPacket;
-        memcpy(&alertPacket, data, sizeof(AlertFlag));
-        Serial.printf("\n[Radio Link] AlertFlag received: %s\n",
-                      alertPacket.alert ? "true" : "false");
+      if (len == sizeof(AlertFlagPacket)) {
+        AlertFlagPacket incomingPacket;
+        memcpy(&incomingPacket, data, sizeof(AlertFlagPacket));
+
+        // Assign received value to receiver's global variable
+        alertFlag = incomingPacket.alert;
+
+        Serial.printf("\n[Radio Link] AlertFlag received: %s\n", alertFlag ? "TRUE" : "FALSE");
       }
       break;
 
+    // -------------------------------------------------------------
+    // HANDLE MSG_BME280 (13 Bytes)
+    // -------------------------------------------------------------
     case MSG_BME280:
       if (len == sizeof(BME280Data)) {
-        BME280Data bmePacket;
-        memcpy(&bmePacket, data, sizeof(BME280Data));
-        globalHumidity = bmePacket.humidity;
-        globalPressure = bmePacket.pressure;
-        globalTemp = bmePacket.temperature;
+        BME280Data pkt;
+        memcpy(&pkt, data, sizeof(BME280Data));
 
-        Serial.printf("\n[Radio Link] BME280 Update -> Temp: %.2f F  Hum: %.1f%%  Pres: %.4f inHg\n",
-                      globalTemp, globalHumidity, globalPressure * 0.02953);
+        globalTemp = pkt.temperature;
+        globalHumidity = pkt.humidity;
+        globalPressure = pkt.pressure;
+
+        Serial.printf("\n[Radio Link] BME280 Rx -> Temp: %.2f°F  Hum: %.1f%%  Pres: %.2f hPa\n",
+                      globalTemp, globalHumidity, globalPressure);
+
+                    
       } else {
-        Serial.printf("\n\n Size Mismatch — BmeData: Expected %d got %d bytes\n",
+        Serial.printf("\n[Size Mismatch] BME280: Expected %d, got %d bytes\n",
                       sizeof(BME280Data), len);
       }
       break;
 
+    // -------------------------------------------------------------
+    // HANDLE MSG_BLOWER_STATE (10 Bytes)
+    // -------------------------------------------------------------
+    case MSG_BLOWER_STATE:
+      if (len == sizeof(BlowerData)) {
+        BlowerData pkt;
+        memcpy(&pkt, data, sizeof(BlowerData));
+
+        blowerIsOn = pkt.on;
+
+        Serial.printf("\n[Radio Link] Blower Rx -> State: %s  Elapsed: %.2f min  Daily: %.2f min\n",
+                      blowerIsOn ? "ON" : "OFF", pkt.elapsedMinutes, pkt.dailyTotalMinutes);
+      } else {
+        Serial.printf("\n[Size Mismatch] BlowerData: Expected %d, got %d bytes\n",
+                      sizeof(BlowerData), len);
+      }
+      break;
+
     default:
-      Serial.printf("\n\n Unknown packet type: %d\n", data[0]);
+      Serial.printf("\n[Radio Link Warning] Unknown packet type ID: %d\n", data[0]);
       break;
   }
+  return;
 }
 
 // Dedicated handler function called from loop()
@@ -589,14 +586,17 @@ void processOneShotButton() {
     // Clear flags to enforce one-shot execution
     buttonPressed = false;
   }
-  delay(100);
+  delay(50);
+  return;
 }
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n\nHeating System Monitor IV - ESP_NOW_Receiver + LoRa WOR\n");
+  Serial.print("\n\nHVAC System Monitor - ESP_NOW_Receiver + LoRa WOR\n");
+  Serial.println("with SX1262 rxDutyCycle\n\n");
+
   Serial.println("Build: " __DATE__ " " __TIME__ "\n");
 
   // Configure pin with internal pull-down (expects 3.3V when pressed)
@@ -664,7 +664,7 @@ void setup() {
   }
   Serial.println("ESP-NOW init OK");
   Serial.printf("sizeof(BlowerData)=%d  sizeof(AlertFlag)=%d  sizeof(BME280Data)=%d\n",
-                sizeof(BlowerData), sizeof(AlertFlag), sizeof(BME280Data));
+                sizeof(BlowerData), sizeof(AlertFlagPacket), sizeof(BME280Data));
 
   if (!blowerNode.add_to_system()) {
     Serial.println("Failed to bind Blower Node");
@@ -724,14 +724,14 @@ void loop() {
   }
 
   // ── Gatekeeper: alertFlag handler ────────────────────────────────────────
-  if (alertFlag) {
+  if (alertFlag == true) {
     alertFlag = false;
     digitalWrite(WRITE_LED_PIN, HIGH);  // writes starting
 
     // LoRa WOR replaces the old ESP-NOW sendAlert()/delay(1000) poll --
     // the outside node is asleep between events now, so it can't answer
     // an ESP-NOW poll directly; it has to be woken via LoRa first.
-    sendOutsideWakeRequest();
+    //sendOutsideWakeRequest();
 
     // Outside node round trip: DIO1 wake -> ESP32 reboot -> setup() ->
     // radio init -> BME280 read -> WiFi reconnect -> ESP-NOW send. This
@@ -832,7 +832,7 @@ void sendDataToServer(String updateTime, float outT, float inT, float inHum,
 
   if (http.begin(secureClient, urlFinal)) {
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.setTimeout(10000);
     int httpCode = http.GET();
     Serial.printf("[HTTP] Status Code: %d\n", httpCode);
