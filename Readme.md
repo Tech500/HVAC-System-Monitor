@@ -49,6 +49,37 @@ HVAC_System_Monitor/
     ├── utilities.h
     └── README.md
 
+---
+
+## Google Apps Script Setup
+
+1. In Google Sheets, create a new Google Sheet.
+2. Note the **Sheet ID** from the URL:
+   `https://docs.google.com/spreadsheets/d/`**`<YOUR_SHEET_ID>`**`/edit`
+3. Open the Script Editor: **Extensions → Apps Script**.
+4. Delete the default `myFunction()` stub entirely.
+5. Copy the full text contents of `Code.gs` from this repository.
+6. Paste into the Script Editor.
+7. Replace the placeholder Sheet ID in the script with the Sheet ID noted in Step 2.
+8. **Save** (Ctrl+S or the save icon).
+9. Click **Deploy → New Deployment**.
+10. Select type: **Web App**.
+11. Set **Execute as:** Me.
+12. Set **Who has access:** Anyone.
+13. Click **Authorize** → **Advanced** → click your Gmail account → **Allow**.
+14. Copy the deployment ID and paste it into the Receiver sketch as the Google Script endpoint.
+
+> **Note:** If you redeploy after changes, create a **New Deployment** each time and update
+> the deployment ID in the Receiver sketch to match. (Editing an existing deployment to a
+> new version can preserve the ID, but a fresh deployment always works.)
+
+Numeric fields pass through a `numOrText()` helper in `Code.gs`: numbers are stored as
+numbers, and the receiver's "Offline" sentinel (sent when the outdoor node fails to reply)
+is preserved as text. Sheets functions like AVERAGE skip text cells automatically; in
+pandas, load with `na_values=['Offline']`.
+
+---
+
 ## Acknowledgements
 
 This project was the result of a collaborative engineering effort involving both hands-on
