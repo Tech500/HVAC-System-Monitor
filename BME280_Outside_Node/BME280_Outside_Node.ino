@@ -313,6 +313,9 @@ void setup() {
   Serial.begin(115200);
   delay(1500);
 
+  Serial.print("\n\n\nHVAC System Monitor - BME280_Outside_Node + LoRa WOR\n");
+  Serial.println("with SX1262 rxDutyCycle\n\n");
+
   // 2. Initialize SPI hardware pins BEFORE reading registers
   pinMode((gpio_num_t)RADIO_CS_PIN, OUTPUT);
   digitalWrite((gpio_num_t)RADIO_CS_PIN, HIGH);
