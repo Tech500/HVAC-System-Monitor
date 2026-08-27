@@ -52,7 +52,7 @@ As long as these three files remain in the same folder as the sketch, the projec
 
 ### Mandatory Requirement
 
-**ESP32 Arduino Core 3.3.10 is required.**
+**ESP32 Arduino Core 3.3.10 is required!!!**
 
 This project must be compiled using ESP32 Arduino Core 3.3.10. Earlier or later versions may:
 
@@ -138,7 +138,7 @@ These values describe radio behavior only during the RxDutyCycle WOR pattern, me
 
 This is the radio's sleep portion inside the WOR cycle, not the SX1262 standalone deep-sleep mode.
 
-- **Average: ~21 µA**
+- **Average: ~22.40 µA**
 - This is the correct value from the Nordic PPK2 grey-selection box
 - Any lower instantaneous readings (including single-digit µA) are not representative averages and must not be used for documentation
 
@@ -185,19 +185,12 @@ Typical deployments see ~20 wake events per day, so this cost is small and inter
 ## Example Log Output
 
 ```
-Wakeup cause = 0
-[COLD BOOT] Initializing SX1262 for RxDutyCycle WOR...
-
-SX1262 reset...
-SX1262 Warm Boot Active, no reset.  Configuration complete.
-Arming RxDutyCycle...
-
-=== Entering deep sleep ===
-
-Wakeup cause = 2
-[WOR WAKE] EXT0, preamble detected...
-SX1262 IRQ = 0x0004
-```
+[WAKE] EXT0 Triggered by GPIO 16 (RTC Level: 1)
+[WOR] Warm Boot active. SX1262 IRQ: 0x0004
+BME280 -> Temp: 80.88 F  Hum: 54.18 %  Pres: 1017.4484 hPa
+[ESP-NOW] Send to hub: OK
+[ESP-NOW] Sent alertFlag: TRUE
+Entering Deep Sleep with RxDutyCycle armed...
 
 ---
 
