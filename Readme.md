@@ -1,4 +1,3 @@
-```
 # HVAC System Monitor 
 
 This repository contains a three‑node HVAC monitoring system designed as the successor to the Heating System Monitor IV project. It uses:
