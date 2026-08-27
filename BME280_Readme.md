@@ -146,10 +146,10 @@ This is the radio's sleep portion inside the WOR cycle, not the SX1262 standalon
 
 The radio opens its RX window and listens for a LoRa preamble.
 
-- **Peak: ~7.79 mA**
+- **Average: ~7.79 mA**
 - Short duration (8.58 ms), autonomous listening on the SX1262
 
-### OneComplete RxDutyCycle Segment — One RxDutyCycle
+### One Complete RxDutyCycle **
 
 This is the average of one RxDutyCycle:
 
