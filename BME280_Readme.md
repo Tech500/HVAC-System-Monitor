@@ -154,7 +154,7 @@ The radio opens its RX window and listens for a LoRa preamble.
 This is the average of one RxDutyCycle:
 
 - One complete RxDutyCycle (~94.01 µA Average, 997.8 ms) 
-- Sleep portion (~21 µA, 987.9 ms)
+- Sleep portion (~22.40 µA, 987.9 ms)
 - Listening window (~7.79 mA Average, 8.58 ms)
 - RxDutyCycle pattern repeats continuously;
   accounting for the higher ~94.01 µA current.
