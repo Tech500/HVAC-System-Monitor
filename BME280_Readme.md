@@ -36,9 +36,9 @@ Place these **three files** in the same folder as your `.ino` or `main.cpp`:
 
 | File | Purpose |
 |---|---|
-| `boards.h` | Ebyte board pin definitions |
-| `utilities.h` | SX1262 hardware mapping (DIO1 = GPIO33) |
-| `SX1262_Commands.h` | Semtech low-level command set (SetRxDutyCycle, IRQ ops, etc.) |
+| `boards.h` | Ebyte board initBoard, board setup |
+| `utilities.h` |Ebyte board, hardware mapping (DIO1 = GPIO33) |
+| `SX1262_Commands.h` | Semtech low-level commands set (SetRxDutyCycle, IRQ ops, etc.) |
 
 ### Sketch Folder Placement
 
@@ -198,7 +198,7 @@ Entering Deep Sleep with RxDutyCycle armed...
 
 ```
 /src
-  main.cpp
+  * Node.ino
   boards.h
   utilities.h
   sx1262_commands.h
