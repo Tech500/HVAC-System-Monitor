@@ -14,4 +14,4 @@
 ![RxDutyCycle Sleep Segment](./Images//Sleep%20Segment.png)
 
 
-[Return to Readme]([url](https://github.com/Tech500/HVAC-System-Monitor/blob/main/BME280_Readme.md))
+[Return to Readme](https://github.com/Tech500/HVAC-System-Monitor/blob/main/BME280_Readme.md)
