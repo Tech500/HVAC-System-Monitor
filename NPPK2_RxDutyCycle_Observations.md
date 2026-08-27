@@ -1,5 +1,5 @@
 
-# NPPK2 RxDutyCycle Observations
+# Nordic Power Profiler Kit II RxDutyCycle Observations
 
 ## ESP32-S3 Wake On Radio (WOR)
 ![WOR Wakeup](./Images/WOR%20%20EXT0%20Wakeup.png)
