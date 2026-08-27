@@ -146,18 +146,20 @@ This is the radio's sleep portion inside the WOR cycle, not the SX1262 standalon
 
 The radio opens its RX window and listens for a LoRa preamble.
 
-- **Peak: ~14 mA**
-- Short duration (30.22 ms), autonomous listening on the SX1262
+- **Peak: ~7.79 mA**
+- Short duration (8.58 ms), autonomous listening on the SX1262
 
 ### OneComplete RxDutyCycle Segment — One RxDutyCycle
 
 This is the average of one RxDutyCycle:
 
-- One complete rxDutyCycle (94.01 µA Average, 997.8 ms) 
+- One complete RxDutyCycle (~94.01 µA Average, 997.8 ms) 
 - Sleep portion (~21 µA, 987.9 ms)
 - Listening window (~7.79 mA Average, 8.58 ms)
 - RxDutyCycle pattern repeats continuously;
-  accounting for the higher 94.01 µA current.
+  accounting for the higher ~94.01 µA current.
+- Wake current during each event-driven wake; during 24
+  hours must also be added in the power profile.
 
 [Nordic Power Profiler Kit 2 Observations](https://github.com/Tech500/HVAC-System-Monitor/blob/main/NPPK2_RxDutyCycle_Observations.md)
 
@@ -172,9 +174,9 @@ When WOR asserts DIO1:
 3. Reads SX1262 IRQ flags
 4. Reads and sends BME280 reading
 5. Re-arms WOR
-6. Returns to sleep
+6. Returns to deep sleep
 
-Wake current is ~30 µA, but only during the short wake window.
+Wake current is ~45.27 mA,  but only during the short wake window.
 
 Typical deployments see ~20 wake events per day, so this cost is small and intermittent.
 
@@ -187,13 +189,14 @@ Wakeup cause = 0
 [COLD BOOT] Initializing SX1262 for RxDutyCycle WOR...
 
 SX1262 reset...
-SX1262 MINIMAL configuration complete.
+SX1262 Warm Boot Active, no reset.  Configuration complete.
 Arming RxDutyCycle...
+
 === Entering deep sleep ===
 
-Wakeup cause = 3
-[WOR WAKE] EXT0 fired! Waiting for packet completion...
-SX1262 IRQ = 0x0000
+Wakeup cause = 2
+[WOR WAKE] EXT0, preamble detected...
+SX1262 IRQ = 0x0004
 ```
 
 ---
@@ -233,6 +236,6 @@ This project is open-source and beginner-friendly. Contributions are welcome in:
 - DIO1 → GPIO33 → jumper → GPIO16 → EXT0 wake
 - Three support files must be in the sketch folder
 - Sketch folder can be placed anywhere
-- ESP32 Core 3.3.10 is mandatory
+- ESP32 Core 3.3.10 is mandatory!!!
 - WOR sleep segment averages ~21 µA
 - Wake events are rare and efficient
