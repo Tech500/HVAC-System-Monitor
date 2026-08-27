@@ -230,5 +230,5 @@ This project is open-source and beginner-friendly. Contributions are welcome in:
 - Three support files must be in the sketch folder
 - Sketch folder can be placed anywhere
 - ESP32 Core 3.3.10 is mandatory!!!
-- WOR sleep segment averages ~21 µA
+- WOR sleep segment averages ~22.40 µA
 - Wake events are rare and efficient
