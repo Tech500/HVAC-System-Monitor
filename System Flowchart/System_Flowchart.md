@@ -10,8 +10,8 @@
 8. Reads wake reason EXT0 or Undefined
 9. EXT0 Initializes SX1262 with no reset (Warm boot)
 10.Undefined Initializes SX1262 with reset  (Cold boot)
-12. Reads IRQ flags
-13. Reads BME280
-14. Sends ESP-NOW data to Inside Node
-15. Arms RxDutyCycle
-16. Returns to deep sleep
+11. Reads IRQ flags
+12. Reads BME280
+13. Sends ESP-NOW data to Inside Node
+14. Arms RxDutyCycle
+15. Returns to deep sleep
