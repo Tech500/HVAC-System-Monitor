@@ -149,15 +149,17 @@ The radio opens its RX window and listens for a LoRa preamble.
 - **Peak: ~14 mA**
 - Short duration (30.22 ms), autonomous listening on the SX1262
 
-### Complete RxDutyCycle Segment — One Full WOR Pattern
+### OneComplete RxDutyCycle Segment — One RxDutyCycle
 
-This is the average of the entire WOR cycle:
+This is the average of one RxDutyCycle:
 
-- Sleep portion (~21 µA)
-- Listening window (~14 mA peak)
-- Return to sleep
+- One complete rxDutyCycle (94.01 µA Average, 997.8 ms) 
+- Sleep portion (~21 µA, 987.9 ms)
+- Listening window (~7.79 mA Average, 8.58 ms)
+- RxDutyCycle pattern repeats continuously;
+  accounting for the higher 94.01 µA current.
 
-This full-cycle average is the correct representation of WOR behavior.
+[Nordic Power Profiler Kit 2 Observations](https://github.com/Tech500/HVAC-System-Monitor/blob/main/NPPK2_RxDutyCycle_Observations.md)
 
 ---
 
