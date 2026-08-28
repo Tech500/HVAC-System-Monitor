@@ -98,7 +98,7 @@ Semtech describes it as:
 1. Sleep
 2. Wake periodically
 3. Open RX window
-4. Look for LoRa preamble
+4. Listen for LoRa preamble
 5. If detected → assert DIO1
 6. MCU wakes via EXT0
 7. MCU reads and sends BME280 Readings to Inside Node via ESP-NOW
