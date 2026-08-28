@@ -6,6 +6,11 @@ This repository contains a three‑node HVAC monitoring system designed as the s
 - ESP‑NOW for node‑to‑node communication
 - Google Sheets for perpetual month‑to‑month and year‑to‑year logging
 
+How blower detection works (variance-based thresholding): Blower state is detected with an MPU-6050 6-axis IMU attached to the outside of the blower enclosure. The sketch computes the statistical variance of accelerometer samples over a short window. A running blower produces mechanical vibration (high variance); a stopped blower produces almost none (low variance). Hysteresis between the ON and OFF thresholds prevents chatter at the transitions. No electrical hookup to the heating/cooling system is required, and no microphone is involved — it is immune to room noise.<br>
+
+Logged data includes: NTP timestamp, outside temperature, inside temperature, inside humidity, thermostat setpoint, elapsed blower minutes (per cycle), daily total blower minutes, outside pressure, inside pressure, pressure difference (out − in), cycles today, coast minutes (hold time between cycles), and average cycle minutes.
+Each record is written to both a local LittleFS log file and a perpetual Google Sheet (month-to-month, year-to-year).<br>
+
 ## Nodes
 
 1. **WOR Sensor Node (Outdoor BME280)**  
