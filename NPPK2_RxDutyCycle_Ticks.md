@@ -60,7 +60,7 @@ Three experiment Images below, one per tick configuration tested.
 
 ### Measurements
 
-#define RXDC_RX_TICKS       1050UL
+#define RXDC_RX_TICKS       1050UL  
 #define RXDC_SLEEP_TICKS    5120UL  
 
 | Metric | Value |
