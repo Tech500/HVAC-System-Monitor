@@ -1,0 +1,191 @@
+(pcb "C:\Users\William\Documents\HVAC-Kicad-9.0--Blower_Node\Blower_Node\temp-freerouting.dsn"
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (host_cad "KiCad's Pcbnew")
+    (host_version "10.0.6")
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  156220 -92690  99370 -92690  99370 -54420  156220 -54420
+            156220 -92690)
+    )
+    (via "Via[0-1]_600:300_um")
+    (rule
+      (width 200)
+      (clearance 200)
+      (clearance 50 (type smd_smd))
+    )
+  )
+  (placement
+    (component Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical
+      (place U1 116500 -83610 front 180 (PN module_mpu6050))
+    )
+    (component Connector_PinSocket_2.54mm:PinSocket_1x09_P2.54mm_Vertical
+      (place J1 129650 -84160 front 180 (PN Conn_01x09_Pin))
+      (place J2 147500 -84160 front 180 (PN Conn_01x09_Pin))
+    )
+  )
+  (library
+    (image Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical
+      (outline (polygon signal 0  -1765 1765  1765 1765  1765 -19545  -1765 -19545))
+      (outline (path signal 120  -1330 -1270  -1330 -19110))
+      (outline (path signal 120  -1330 -1270  1330 -1270))
+      (outline (path signal 120  -1330 -19110  1330 -19110))
+      (outline (path signal 120  0 1330  1330 1330))
+      (outline (path signal 120  1330 1330  1330 0))
+      (outline (path signal 120  1330 -1270  1330 -19110))
+      (outline (path signal 100  -1270 1270  635 1270))
+      (outline (path signal 100  -1270 -19050  -1270 1270))
+      (outline (path signal 100  635 1270  1270 635))
+      (outline (path signal 100  1270 635  1270 -19050))
+      (outline (path signal 100  1270 -19050  -1270 -19050))
+      (pin Rect[A]Pad_1700.000000x1700.000000_um 1 0 0)
+      (pin Round[A]Pad_1700.000000_um 2 0 -2540)
+      (pin Round[A]Pad_1700.000000_um 3 0 -5080)
+      (pin Round[A]Pad_1700.000000_um 4 0 -7620)
+      (pin Round[A]Pad_1700.000000_um 5 0 -10160)
+      (pin Round[A]Pad_1700.000000_um 6 0 -12700)
+      (pin Round[A]Pad_1700.000000_um 7 0 -15240)
+      (pin Round[A]Pad_1700.000000_um 8 0 -17780)
+    )
+    (image Connector_PinSocket_2.54mm:PinSocket_1x09_P2.54mm_Vertical
+      (outline (polygon signal 0  -1765 1765  1765 1765  1765 -22085  -1765 -22085))
+      (outline (path signal 120  1330 -1270  1330 -21650))
+      (outline (path signal 120  1330 1330  1330 0))
+      (outline (path signal 120  0 1330  1330 1330))
+      (outline (path signal 120  -1330 -21650  1330 -21650))
+      (outline (path signal 120  -1330 -1270  1330 -1270))
+      (outline (path signal 120  -1330 -1270  -1330 -21650))
+      (outline (path signal 100  1270 -21590  -1270 -21590))
+      (outline (path signal 100  1270 635  1270 -21590))
+      (outline (path signal 100  635 1270  1270 635))
+      (outline (path signal 100  -1270 -21590  -1270 1270))
+      (outline (path signal 100  -1270 1270  635 1270))
+      (pin Rect[A]Pad_1700.000000x1700.000000_um 1 0 0)
+      (pin Round[A]Pad_1700.000000_um 2 0 -2540)
+      (pin Round[A]Pad_1700.000000_um 3 0 -5080)
+      (pin Round[A]Pad_1700.000000_um 4 0 -7620)
+      (pin Round[A]Pad_1700.000000_um 5 0 -10160)
+      (pin Round[A]Pad_1700.000000_um 6 0 -12700)
+      (pin Round[A]Pad_1700.000000_um 7 0 -15240)
+      (pin Round[A]Pad_1700.000000_um 8 0 -17780)
+      (pin Round[A]Pad_1700.000000_um 9 0 -20320)
+    )
+    (padstack Round[A]Pad_1700.000000_um
+      (shape (circle F.Cu 1700))
+      (shape (circle B.Cu 1700))
+      (attach off)
+    )
+    (padstack Rect[A]Pad_1700.000000x1700.000000_um
+      (shape (rect F.Cu -850 -850 850 850))
+      (shape (rect B.Cu -850 -850 850 850))
+      (attach off)
+    )
+    (padstack "Via[0-1]_600:300_um"
+      (shape (circle F.Cu 600))
+      (shape (circle B.Cu 600))
+      (attach off)
+    )
+  )
+  (network
+    (net "unconnected-(J1-Pin_1-Pad1)"
+      (pins J1-1)
+    )
+    (net "Net-(J1-Pin_2)"
+      (pins U1-2 J1-2)
+    )
+    (net "Net-(J1-Pin_3)"
+      (pins U1-1 J1-3)
+    )
+    (net "unconnected-(J1-Pin_4-Pad4)"
+      (pins J1-4)
+    )
+    (net "unconnected-(J1-Pin_5-Pad5)"
+      (pins J1-5)
+    )
+    (net "unconnected-(J1-Pin_6-Pad6)"
+      (pins J1-6)
+    )
+    (net "unconnected-(J1-Pin_7-Pad7)"
+      (pins J1-7)
+    )
+    (net "unconnected-(J1-Pin_8-Pad8)"
+      (pins J1-8)
+    )
+    (net "unconnected-(J1-Pin_9-Pad9)"
+      (pins J1-9)
+    )
+    (net "unconnected-(J2-Pin_1-Pad1)"
+      (pins J2-1)
+    )
+    (net "unconnected-(J2-Pin_2-Pad2)"
+      (pins J2-2)
+    )
+    (net "unconnected-(J2-Pin_3-Pad3)"
+      (pins J2-3)
+    )
+    (net "Net-(J2-Pin_4)"
+      (pins U1-3 J2-4)
+    )
+    (net "Net-(J2-Pin_5)"
+      (pins U1-4 J2-5)
+    )
+    (net "unconnected-(J2-Pin_6-Pad6)"
+      (pins J2-6)
+    )
+    (net "unconnected-(J2-Pin_7-Pad7)"
+      (pins J2-7)
+    )
+    (net "unconnected-(J2-Pin_8-Pad8)"
+      (pins J2-8)
+    )
+    (net "unconnected-(J2-Pin_9-Pad9)"
+      (pins J2-9)
+    )
+    (net "unconnected-(U1-XDA-Pad5)"
+      (pins U1-5)
+    )
+    (net "unconnected-(U1-XCL-Pad6)"
+      (pins U1-6)
+    )
+    (net "unconnected-(U1-ADD-Pad7)"
+      (pins U1-7)
+    )
+    (net "unconnected-(U1-INT-Pad8)"
+      (pins U1-8)
+    )
+    (class kicad_default "Net-(J1-Pin_2)" "Net-(J1-Pin_3)" "Net-(J2-Pin_4)"
+      "Net-(J2-Pin_5)" "unconnected-(J1-Pin_1-Pad1)" "unconnected-(J1-Pin_4-Pad4)"
+      "unconnected-(J1-Pin_5-Pad5)" "unconnected-(J1-Pin_6-Pad6)" "unconnected-(J1-Pin_7-Pad7)"
+      "unconnected-(J1-Pin_8-Pad8)" "unconnected-(J1-Pin_9-Pad9)" "unconnected-(J2-Pin_1-Pad1)"
+      "unconnected-(J2-Pin_2-Pad2)" "unconnected-(J2-Pin_3-Pad3)" "unconnected-(J2-Pin_6-Pad6)"
+      "unconnected-(J2-Pin_7-Pad7)" "unconnected-(J2-Pin_8-Pad8)" "unconnected-(J2-Pin_9-Pad9)"
+      "unconnected-(U1-ADD-Pad7)" "unconnected-(U1-INT-Pad8)" "unconnected-(U1-XCL-Pad6)"
+      "unconnected-(U1-XDA-Pad5)"
+      (circuit
+        (use_via "Via[0-1]_600:300_um")
+      )
+      (rule
+        (width 200)
+        (clearance 200)
+      )
+    )
+  )
+  (wiring
+  )
+)

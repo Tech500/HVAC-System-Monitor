@@ -1,0 +1,4 @@
+"Reference","Qty","Value","DNP","Exclude from BOM","Exclude from Board","Footprint","Datasheet"
+"H1,H2","2","MountingHole_Pad","","Excluded from BOM","","MountingHole:MountingHole_2.2mm_M2_Pad","~"
+"J1","1","Conn_01x06","","","","BME280_Socket:PinSocket_1x06_P2.54mm_Vertical","~"
+"J2","1","EoRaPi_Conn_2x13","","","","EoRaPi:EoRaPi_Conn_2x13_P2.54mm_0.900in_Spacing",""

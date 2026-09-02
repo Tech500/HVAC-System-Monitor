@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "MountingHole_2.2mm_M2_Pad")(type "KiCad")(uri "${KIPRJMOD}/M2_Mounting_Hole.kicad_sym")(options "")(descr ""))
+)

@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Pinsocket_1x06._P2.54")(type "KiCad")(uri "${KIPRJMOD}/Pinsocket_1x06._P2.54.pretty")(options "")(descr ""))
+  (lib (name "MountingHole_2.2mm_M2_Pad")(type "KiCad")(uri "C:/Users/William/Documents/KiCad/9.0/footprints/M2_Mounting_Hole.pretty")(options "")(descr ""))
+)

@@ -1,0 +1,17 @@
+{
+  "jobs": [],
+  "meta": {
+    "version": 1
+  },
+  "outputs": [
+    {
+      "description": "",
+      "id": "7170d8b4-83cc-4aea-a36f-129bc81eda70",
+      "only": [],
+      "settings": {
+        "output_path": "ESP-NOW Blower Node"
+      },
+      "type": "folder"
+    }
+  ]
+}

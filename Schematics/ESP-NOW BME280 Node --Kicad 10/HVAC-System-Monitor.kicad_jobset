@@ -1,0 +1,17 @@
+{
+  "jobs": [],
+  "meta": {
+    "version": 1
+  },
+  "outputs": [
+    {
+      "description": "",
+      "id": "bcd5fc6d-5684-4d50-b9a4-147b67927a3c",
+      "only": [],
+      "settings": {
+        "output_path": "HVAC-System-Monitor"
+      },
+      "type": "folder"
+    }
+  ]
+}
