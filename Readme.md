@@ -27,7 +27,76 @@ Each record is written to both a local LittleFS log file and a perpetual Google 
 3. **Blower Node (MPU6050 Vibration Sensing)**  
    - Detects blower ON/OFF via variance threshold, vibration  
    - ESP‑NOW TX → Receiver Node  
-   - No electrical hookup to HVAC wiring  
+   - No electrical hookup to HVAC wiring
+  
+## Schematics and PCB Designs
+The Schematics/ folder contains all hardware design files for the three‑node HVAC System Monitor.
+All boards were designed in KiCad 10, and each PCB includes:
+
+Full schematic (.kicad_sch)
+
+PCB layout (.kicad_pcb)
+
+Fabrication outputs (Gerber + drill files)
+
+3D board previews (where applicable)
+
+Supported Hardware Platforms
+All PCBs in this project are designed around two specific ESP32‑S3 platforms:
+
+Ebyte EoRa‑S3‑900TB  
+A compact, battery‑optimized ESP32‑S3 + SX1262 LoRa module used for the WOR outdoor node and indoor receiver node.
+Includes onboard battery charger, dual LDOs, SD slot, OLED header, and SX1262 radio — ideal for ultra‑low‑power sensing.
+
+ESP32‑S3 SuperMini  
+A minimal ESP32‑S3 module used for the Blower Node.
+Provides a small footprint, simple power domain, and reliable ESP‑NOW performance for vibration sensing.
+
+PCB Overview
+The HVAC System Monitor requires three PCBs, corresponding to the three nodes:
+
+Outdoor WOR Sensor Node (BME280 + LoRa WOR)
+
+Indoor Receiver Node (BME280 + ESP‑NOW aggregator + Google Sheets uploader)
+
+Blower Node (MPU6050 vibration sensing + ESP‑NOW)
+
+The ESP-NOW BME280 Node and ESP-NOW Inside Node use the same ESP‑NOW/BME280 PCB with GY-BME280-3.3V, 6 pin, built around the EoRa‑S3‑900TB.
+
+The Blower Node uses a dedicated PCB built around the ESP32‑S3 SuperMini and the MPU6050 IMU.  
+Note: not all ESP32-S3 SuperMini clones have the same pin layout!!!
+
+PCB Designs Included
+ESP-NOW BME280 Node and ESP‑NOW Blower Node
+
+Single PCB design used for both ESP-NOW BME280 Node and ESP-NOW Inside Nodees
+
+SX1262 LoRa WOR support (via EoRa-S3-900TB onboard SX1262 radio)
+
+BME280 I²C header for GY-BME280-3.3V, 6 pin
+
+EoRa-S3-900TB Battery‑optimized power domain
+
+ESP‑NOW antenna layout
+
+Mounting holes for outdoor enclosure use
+
+ESP32‑S3 SuperMini Blower Node PCB
+
+MPU6050 vibration sensor header
+
+Vibration‑optimized mounting pattern
+
+Simple 3.3V regulation
+
+ESP‑NOW antenna layout
+
+Compact footprint for blower, cabinet housing attachment
+Note:  No electrical hook uprequired!
+
+Fabrication Status
+Gerber and drill files for all boards are included and ready for manufacturing.
+The first batch of PCBs has been submitted and is currently awaiting delivery for hardware verification, fit‑testing, and firmware bring‑up.
 
 ## Folder Structure
 
@@ -38,21 +107,20 @@ HVAC_System_Monitor/
 │   ├── BME280_WOR_Node.ino
 │   ├── boards.h
 │   ├── utilities.h
-│   ├── sx1262_commands.h
-│   ├── sx1262_commands.cpp
-│   └── README.md
+│   └── sx1262_commands.h
+│  
+│   
 │
 ├── Node_Receiver/
-│   ├── Receiver_Node.ino
-│   ├── boards.h
-│   ├── utilities.h
-│   └── README.md
+│   └── Receiver_Node.ino  ses RadioLib library
+│
+│   
 │
 └── Node_Blower/
     ├── Blower_Node.ino
     ├── boards.h
-    ├── utilities.h
-    └── README.md
+    └── utilities.h
+   
 
 ---
 
