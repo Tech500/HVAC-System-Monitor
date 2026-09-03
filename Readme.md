@@ -55,11 +55,11 @@ Provides a small footprint, simple power domain, and reliable ESP‑NOW performa
 PCB Overview
 The HVAC System Monitor requires three PCBs, corresponding to the three nodes:
 
-Outdoor WOR Sensor Node (BME280 + LoRa WOR)
+ESP-NOW BME280 Node; with Wake-On-Radio (WOR) preamble (LoRa WOR + BME280)
 
-Indoor Receiver Node (BME280 + ESP‑NOW aggregator + Google Sheets uploader)
+ESP-NOW Indoor Node (BME280 + ESP‑NOW aggregator + Google Sheets uploader)
 
-Blower Node (MPU6050 vibration sensing + ESP‑NOW)
+ESP-NOW Blower Node (MPU6050 vibration sensing + ESP‑NOW)
 
 The ESP-NOW BME280 Node and ESP-NOW Inside Node use the same ESP‑NOW/BME280 PCB with GY-BME280-3.3V, 6 pin, built around the EoRa‑S3‑900TB.
 
