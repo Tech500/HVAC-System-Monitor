@@ -416,16 +416,17 @@ bool detectBlower() {
     } else {
       consecutiveOnCount = 0;
     }
-    if (consecutiveOnCount >= ON_CONFIRM) {
-      blowerOn           = true;
-      consecutiveOnCount = 0;
-      blowerStartTime    = time(nullptr);
-      getDateTime();
-      Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
-      sendData(true);
-      settleDelay(500);
-    }
-  } else {
+   
+   if (consecutiveOnCount >= ON_CONFIRM) {
+     blowerOn           = true;
+     consecutiveOnCount = 0;
+     blowerStartTime    = time(nullptr);
+     getDateTime();
+     Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
+     logToFile(true);        // <-- add: one-time ON row, same pattern as OFF
+     sendData(true);
+     settleDelay(500);
+   } else {
     if (currentVariance < OFF_THRESHOLD) {
       consecutiveOffCount++;
       consecutiveOnCount = 0;
@@ -749,9 +750,6 @@ void loop() {
     lastOneSecondCheck += 1000;
 
     getDateTime();
-    if (blowerIsOn) {
-      logToFile(true);   // continuous per-second logging while running
-    }
     // while OFF: no per-second file write — the single OFF summary row
     // was already written at the transition in detectBlower()
 
