@@ -1,5 +1,23 @@
 /* HVAC System Monitor
    ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
+   September 05, 2026 @ 14:02 EDT
+   ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
+   Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
+   as the BE280 Node.
+
+   --- LoRa merge, July 19, 2026 ---
+   Inside Node's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
+   BME280 Node is the one sitting in rxDutyCycle.  Inside Node only needs 
+   to send Wake On Radio (WOR), Collect data, and Log data locally and to 
+   perpetual Google Sheet; sending a WOR Preamble on the Blower None's alertFlag, 
+   The BME280 Node's actual BME280 sensor readings, reply comes back over  ESP-NOW 
+   (MSG_BME280), only the trigger mechanism changed, not the reply path.  Link params 
+   (SF7 / BW5125 / 2dBm) optimized for the real ~20ft link,  MUST MATCH the BME280 
+   Node's radio.begin() exactly.
+*/
+
+/* HVAC System Monitor
+   ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
    August 26, 2026 @ 14:02 EDT
    ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
    Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
@@ -332,7 +350,7 @@ void setupLoRa() {
     5,                                  // CR 4/5 (Set to 5, NOT 7)
     RADIOLIB_SX126X_SYNC_WORD_PRIVATE,  // Resolves to 0x1424
     -1,                                 // Tx Power: 2 dBm
-    1200,                               // WOR Preamble: 5000 symbols (~5.12s)
+    5200,                               // WOR Preamble: 5000 symbols (~5.12s)
     0.0,                                // 0.0V = Crystal (XTAL), NOT TCXO!
     true                                // true = Use LDO Regulator Mode
   );
@@ -350,8 +368,8 @@ void setupLoRa() {
 // wakes the outside node's ESP32 via DIO1 -> EXT0. Outside node's actual
 // sensor reply still comes back over ESP-NOW (MSG_BME280), unchanged.
 void sendOutsideWakeRequest() {
-  radio.setPreambleLength(1200);
-  Serial.println(F("[LoRa] Sending 1200-symbol WOR preamble + 1-byte payload..."));
+  radio.setPreambleLength(5200);
+  Serial.println(F("[LoRa] Sending 5200-symbol WOR preamble + 1-byte payload..."));
 
   uint8_t payload = 0x55;
   int state = radio.transmit(&payload, 1);
