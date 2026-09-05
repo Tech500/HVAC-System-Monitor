@@ -103,7 +103,7 @@ The first batch of PCBs has been submitted and is currently awaiting delivery fo
 ```text
 HVAC_System_Monitor/
 │
-├── Node_WOR_Sensor/
+├── BME280_Outside Node/
 │   ├── BME280_WOR_Node.ino
 │   ├── boards.h
 │   ├── utilities.h
@@ -111,13 +111,14 @@ HVAC_System_Monitor/
 │  
 │   
 │
-├── Node_Receiver/
-│   └── Receiver_Node.ino  ses RadioLib library
-│
+├── ESP-NOW_Inside_Node/
+│   ├──  ESP-NOW_Inside_Node.ino  uses RadioLib library
+|   ├── boards.h
+│   └── utilities.h
 │   
 │
-└── Node_Blower/
-    └──  Blower_Node.ino
+└── ESP-NOW_Blower_MPU6050/
+    └──  ESP-NOW Blower_MPU6050ino
 
 ---
 
