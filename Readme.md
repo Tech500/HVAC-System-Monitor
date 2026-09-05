@@ -117,10 +117,7 @@ HVAC_System_Monitor/
 │   
 │
 └── Node_Blower/
-    ├── Blower_Node.ino
-    ├── boards.h
-    └── utilities.h
-   
+    └──  Blower_Node.ino
 
 ---
 
