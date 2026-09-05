@@ -16,24 +16,6 @@
    Node's radio.begin() exactly.
 */
 
-/* HVAC System Monitor
-   ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
-   August 26, 2026 @ 14:02 EDT
-   ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
-   Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
-   as the BE280 Node.
-
-   --- LoRa merge, July 19, 2026 ---
-   Inside Node's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
-   BME280 Node is the one sitting in rxDutyCycle.  Inside Node only needs 
-   to send Wake On Radio (WOR), Collect data, and Log data locally and to 
-   perpetual Google Sheet; sending a WOR Preamble on the Blower None's alertFlag, 
-   The BME280 Node's actual BME280 sensor readings, reply comes back over  ESP-NOW 
-   (MSG_BME280), only the trigger mechanism changed, not the reply path.  Link params 
-   (SF7 / BW5125 / 2dBm) optimized for the real ~20ft link,  MUST MATCH the BME280 
-   Node's radio.begin() exactly.
-*/
-
 #include <Arduino.h>
 #include <Wire.h>
 #include <BME280I2C.h>
