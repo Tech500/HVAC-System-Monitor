@@ -1,5 +1,5 @@
 /*  BME280_Outside_Node.ino
-  August 26, 2026 @ 05:33 EDT
+ September 05, 2026 @ 05:33 EDT
   ESP32 Core 3.3.10 Required!!! Earlier breaks compile!
 */
 
@@ -30,11 +30,8 @@
 #define BME_SCL_PIN 48
 #define BME_I2C_ADDR 0x76
 
-//#define RXDC_RX_TICKS 2048UL
-//#define RXDC_SLEEP_TICKS 5120UL
-
-#define RXDC_RX_TICKS       512UL     // 9 ms  (≈8.8 symbols)
-#define RXDC_SLEEP_TICKS 	63488UL     // 992. s
+#define RXDC_RX_TICKS       512UL     
+#define RXDC_SLEEP_TICKS 	323648UL    
 
 uint8_t hubMAC[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
 
@@ -296,6 +293,7 @@ void enterLowPowerWOR() {
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_16, 1);
 
   Serial.println("Entering Deep Sleep with RxDutyCycle armed...");
+
   Serial.flush();
 
   // 6. Enter Deep Sleep
@@ -372,12 +370,13 @@ void setup() {
   // -------------------------------------------------------------
   // 2. SLOW PATH: COLD BOOT / BUTTON / IDE FLASH / RECOVERY
   // -------------------------------------------------------------
-  Serial.println("\n\n[INIT] Cold Boot active. Full initialization of the SX1262\n");
+  Serial.println("[INIT] Cold Boot active. Full initialization of the SX1262\n");
 
   if(wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
     //Serial.println("Cold Boot");
     // Hard physical pulse on NRESET line to unlatch radio state machine
     initRadio();
+
     enterLowPowerWOR();
   }
 
