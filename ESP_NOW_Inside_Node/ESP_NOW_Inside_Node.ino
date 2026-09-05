@@ -44,14 +44,14 @@ SX1262 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUS
 
 #define WRITE_LED_PIN 23  //LittleFS Status LED  ON = Writing
 
-const char *ssid = "R2D2";
-const char *password = "Sky7388500";
+const char *ssid = "ssid";
+const char *password = "password";
 
 //Flag to prevent reset
 bool powerOnReset = false;
 
 // ─── GOOGLE DEPLOYMENT ID ────────────────────────────────────────────────────
-const String googleDeploymentID = "AKfycbz24Axc5Tcs4_bB6IWtMaCKp9BX6nsoZ11kprcCppLtSDnbyhW7F2MVX6roMZduF3x5sg";
+const String googleDeploymentID = "removed for security";
 const String googleURL = "https://script.google.com/macros/s/" + googleDeploymentID + "/exec";
 
 uint8_t hubMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };  // Target Hub MAC
