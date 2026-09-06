@@ -4,7 +4,7 @@ Nordic PPK2 current captures of the outside node's register-level `SetRxDutyCycl
 
 ## Power-On / EoRa Pi Init
 
-![Power applied — EoRa-S3-900TB init](./Images/Power_applied_--EoRa_Pi_init.png)
+![Power applied — EoRa-S3-900TB init](./Images/Power_applied_--EoRa_Pi_init.png)  
 
 Capture from power application through radio/module initialization.
 
