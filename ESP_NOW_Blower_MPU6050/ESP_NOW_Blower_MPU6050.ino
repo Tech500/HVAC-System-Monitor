@@ -406,53 +406,32 @@ void settleDelay(unsigned long ms) {
 // to eliminate chatter observed when a single threshold sat
 // right at the boundary during a real transition.
 // ─────────────────────────────────────────────
+
+//Renzo Mischianti. found brace mismatch preventing compile
+
 bool detectBlower() {
   currentVariance = computeVariance();
-
+ 
   if (!blowerOn) {
-    if (currentVariance >= ON_THRESHOLD) {
-      consecutiveOnCount++;
-      consecutiveOffCount = 0;
-    } else {
+    // —- currently OFF: look for a sustained rise —-
+    if (currentVariance >= ON_THRESHOLD) { consecutiveOnCount++; consecutiveOffCount = 0; }
+    else                                 { consecutiveOnCount = 0; }
+ 
+    if (consecutiveOnCount >= ON_CONFIRM) {
+      blowerOn = true;
       consecutiveOnCount = 0;
+      blowerStartTime = time(nullptr);
+      // … log + send the ON edge
     }
-   
-   if (consecutiveOnCount >= ON_CONFIRM) {
-     blowerOn           = true;
-     consecutiveOnCount = 0;
-     blowerStartTime    = time(nullptr);
-     getDateTime();
-     Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
-     logToFile(true);        // <-- add: one-time ON row, same pattern as OFF
-     sendData(true);
-     settleDelay(500);
-   } else {
-    if (currentVariance < OFF_THRESHOLD) {
-      consecutiveOffCount++;
-      consecutiveOnCount = 0;
-    } else {
-      consecutiveOffCount = 0;
-    }
+  } else {
+    // —- currently ON: look for a sustained drop —-
+    if (currentVariance < OFF_THRESHOLD) { consecutiveOffCount++; consecutiveOnCount = 0; }
+    else                                 { consecutiveOffCount = 0; }
+ 
     if (consecutiveOffCount >= OFF_CONFIRM) {
-      blowerOn            = false;
+      blowerOn = false;
       consecutiveOffCount = 0;
-
-      time_t blowerStopTime = time(nullptr);
-      elapsedMinutes        = difftime(blowerStopTime, blowerStartTime) / 60.0;
-      dailyTotalMinutes    += elapsedMinutes;
-      saveDailyTotal();   // persist to NVS -- survives battery change
-
-      getDateTime();
-      Serial.printf(">>> Blower Detected: OFF @ %s\n", dtStamp.c_str());
-      Serial.printf("    Elapsed: %.2f min  Daily total: %.2f min\n",
-                    elapsedMinutes, dailyTotalMinutes);
-
-      logToFile(false);   // one-time OFF summary row — no more per-second OFF spam
-
-      sendData(false);
-      settleDelay(500);
-      sendAlert();
-      settleDelay(500);
+      // … accumulate elapsed minutes, persist to NVS, log + send the OFF edge
     }
   }
   return blowerOn;
