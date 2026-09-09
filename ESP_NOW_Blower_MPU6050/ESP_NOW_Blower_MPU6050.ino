@@ -1,27 +1,54 @@
-/* 
+/* Heating System Monitor IV
    ESP_NOW_Blower_MPU6050.ino
-   June 2026
-   
-      --- Update (July 12, 2026) ---
-   NVS persistence added for dailyTotalMinutes. This node is battery
-   powered, so a battery change / brownout previously wiped the plain
-   RAM `dailyTotalMinutes` variable back to 0, and the receiver would
-   faithfully mirror that zero to Sheets (the receiver has no
-   independent copy — it just relays whatever this node sends).
-   Now: dailyTotalMinutes + lastResetEpochDay are written to NVS
-   (Preferences, namespace "hsm4blower") on every OFF transition and
+   September 9, 2026
+   ESP-NOW, Verified ESP32 Core 3.3.10
+   MPU-6050 Accelerometer Vector Magnitude Variance Detection
+   I2C: SDA=GPIO5  SCL=GPIO4  Address: 0x68
+   Calibrated: OFF variance ~TBD | ON variance ~TBD | Threshold: 500.0 (tune on bench)
+   OFF_CONFIRM reduced to 5 — mechanical stop is clean, no acoustic bleed
+   Elapsed time computed via NTP difftime() — no secondsCounter drift
+   On OFF confirmation: sends MSG_BLOWER_STATE then MSG_ALERT_FLAG to receiver
+   FTP default user:  admin  password:  admin
+
+   --- CHANGE LOG ---
+   FTP RETR timeout fix: computeVariance() was blocking for
+   SAMPLE_COUNT * SAMPLE_DELAY_MS (64*5ms = 320ms) every single loop()
+   pass, unconditionally. That 320ms blackout meant ftpSrv.handleFTP()
+   never got serviced during an active data transfer, so FTP clients
+   timed out on RETR (LIST worked fine — it's fast, doesn't span the gap).
+   Fix: call ftpSrv.handleFTP() + server.handleClient() once per sample
+   INSIDE computeVariance()'s sampling loop, so FTP is serviced every
+   ~5ms instead of going dark for 320ms. Same interleave applied to the
+   two delay(500) blocks in detectBlower() after sendData()/sendAlert(),
+   since those are the same class of blocking gap, just rarer (only on
+   ON/OFF transitions).
+
+   Shock/ceiling filter added (Renzo's suggestion): sustained readings
+   above SHOCK_CEILING are treated as impact noise (stomping, drops)
+   rather than blower activity, and are excluded from the ON-detection
+   path in detectBlower(). Also added: root "/" page and boot-time
+   serial printout listing the available web pages by IP, and
+   SHOCK_CEILING included in the /status dump.
+
+   Update (July 12, 2026): NVS persistence added for dailyTotalMinutes.
+   This node is battery powered, so a battery change / brownout
+   previously wiped the plain RAM `dailyTotalMinutes` variable back to
+   0, and the receiver would faithfully mirror that zero to Sheets (the
+   receiver has no independent copy — it just relays whatever this node
+   sends). Now: dailyTotalMinutes + lastResetEpochDay are written to
+   NVS (Preferences, namespace "hsm4blower") on every OFF transition and
    at the daily rollover. On boot, the value is restored from NVS
-   instead of starting at 0, and esp_reset_reason() is logged to
-   Serial so you can distinguish POWERON/BROWNOUT (battery change)
-   from DEEPSLEEP/SW resets in the log.
+   instead of starting at 0, and esp_reset_reason() is logged to Serial
+   so you can distinguish POWERON/BROWNOUT (battery change) from
+   DEEPSLEEP/SW resets in the log.
    Midnight reset logic also changed from an exact-second match
    (HOUR==0 && MINUTE==0 && SECOND==0, which a missed loop() pass
-   could skip entirely) to a stored-epoch-day comparison, which
-   fires exactly once regardless of what the clock reads at the
-   moment of the check, and also self-corrects if the node was
-   powered off across a midnight boundary.
-   Write frequency: OFF transitions are infrequent (blower cycles),
-   so this stays well within NVS wear limits on a battery node.
+   could skip entirely) to a stored-epoch-day comparison, which fires
+   exactly once regardless of what the clock reads at the moment of
+   the check, and also self-corrects if the node was powered off
+   across a midnight boundary.
+   Write frequency: OFF transitions are infrequent (blower cycles), so
+   this stays well within NVS wear limits on a battery node.
 */
 
 #include <Arduino.h>
@@ -99,8 +126,7 @@ void initNTP() {
 // ESP-NOW Configuration
 // CHANNEL 0 = match home channel dynamically
 // ─────────────────────────────────────────────
-uint8_t masterAddress[] = { 0xE4, 0x65, 0xB8, 0x20, 0xEC, 0xD8 };
-                            
+uint8_t masterAddress[] = { 0x3C, 0xE9, 0x0E, 0x84, 0xEE, 0x80 };  // kept from repo version
 #define CHANNEL 0
 
 enum MessageType : uint8_t {
@@ -143,10 +169,11 @@ struct __attribute__((packed)) AlertFlag {
 // the two absorbs noise that would otherwise cross a single cutoff
 // back and forth.
 //
-// NOTE: sustained shock events (stomping, drops) can read
-// 100,000+ and would currently misclassify as ON if they
-// last >= ON_CONFIRM cycles. No ceiling filter implemented
-// yet — revisit if false ON triggers are observed in practice.
+// SHOCK_CEILING (Renzo's suggestion): sustained shock events
+// (stomping, drops) can read 130,000+ and would otherwise
+// misclassify as ON if they last >= ON_CONFIRM cycles. Readings
+// at or above SHOCK_CEILING are treated as impact noise and are
+// excluded from the ON-detection path — see detectBlower().
 //
 // OFF_CONFIRM: 5 cycles — mechanical stop is clean.
 //   Each cycle = SAMPLE_COUNT * SAMPLE_DELAY_MS = 64 * 5ms = ~320ms
@@ -155,10 +182,14 @@ struct __attribute__((packed)) AlertFlag {
 // ─────────────────────────────────────────────
 const int   SAMPLE_COUNT    = 64;
 const int   SAMPLE_DELAY_MS = 5;
-const float ON_THRESHOLD    = 7000.0f;  // must rise above this to start counting toward ON
-const float OFF_THRESHOLD   = 5000.0f;  // must drop below this to start counting toward OFF
+const float ON_THRESHOLD    = 7000.0f;   // must rise above this to start counting toward ON
+const float OFF_THRESHOLD   = 5000.0f;   // must drop below this to start counting toward OFF
+const float SHOCK_CEILING   = 120000.0f; // sustained readings at/above this are shock/impact
+                                          // noise (stomping, drops), not blower activity.
+                                          // Legit blower variance (cooling mode) tops out
+                                          // ~114,000; stomps run 130,000+.
 const int   ON_CONFIRM      = 3;
-const int   OFF_CONFIRM     = 5;        // reduced from 90 — clean mechanical stop
+const int   OFF_CONFIRM     = 5;         // reduced from 90 — clean mechanical stop
 
 // ─────────────────────────────────────────────
 // Global State Registers
@@ -192,6 +223,7 @@ bool        loggingActive = true;
 // ─────────────────────────────────────────────
 // Forward Declarations
 // ─────────────────────────────────────────────
+void   handleRoot();
 void   handleClear();
 void   handleDownload();
 void   handleStatus();
@@ -403,39 +435,73 @@ void settleDelay(unsigned long ms) {
 
 // ─────────────────────────────────────────────
 // Blower State Machine — hysteresis added 07/01/2026 evening
-// to eliminate chatter observed when a single threshold sat
-// right at the boundary during a real transition.
+// to eliminate chatter observed when a single threshold sat right
+// at the boundary during a real transition. SHOCK_CEILING guard
+// added to exclude stomp/impact events from the ON path (Renzo's
+// suggestion). OFF branch reconstructed here -- a prior edit that
+// fixed a brace-mismatch (also Renzo's catch) left this branch as
+// a comment-only stub, silently dropping elapsed-time accumulation,
+// NVS persistence, logging, and the OFF/alert sends.
 // ─────────────────────────────────────────────
-
-//Renzo Mischianti. found brace mismatch preventing compile
-
 bool detectBlower() {
   currentVariance = computeVariance();
- 
+
   if (!blowerOn) {
-    // —- currently OFF: look for a sustained rise —-
-    if (currentVariance >= ON_THRESHOLD) { consecutiveOnCount++; consecutiveOffCount = 0; }
-    else                                 { consecutiveOnCount = 0; }
- 
-    if (consecutiveOnCount >= ON_CONFIRM) {
-     blowerOn           = true;
-     consecutiveOnCount = 0;
-     blowerStartTime    = time(nullptr);
-     getDateTime();
-     Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
-     logToFile(true);        // <-- add: one-time ON row, same pattern as OFF
-     sendData(true);
-     settleDelay(500);
-   }
-  } else {
-    // —- currently ON: look for a sustained drop —-
-    if (currentVariance < OFF_THRESHOLD) { consecutiveOffCount++; consecutiveOnCount = 0; }
-    else                                 { consecutiveOffCount = 0; }
- 
-    if (consecutiveOffCount >= OFF_CONFIRM) {
-      blowerOn = false;
+    // -- currently OFF: look for a sustained rise, ignoring shock spikes --
+    if (currentVariance >= ON_THRESHOLD && currentVariance < SHOCK_CEILING) {
+      consecutiveOnCount++;
       consecutiveOffCount = 0;
-      // … accumulate elapsed minutes, persist to NVS, log + send the OFF edge
+    } else if (currentVariance >= SHOCK_CEILING) {
+      // Shock/impact event (stomping, drops) — ignore for state-machine
+      // purposes. Neither counts toward ON nor resets it toward OFF.
+      Serial.printf(">>> Shock filtered: Var=%.2f exceeds SHOCK_CEILING=%.1f\n",
+                    currentVariance, SHOCK_CEILING);
+    } else {
+      consecutiveOnCount = 0;
+    }
+
+    if (consecutiveOnCount >= ON_CONFIRM) {
+      blowerOn           = true;
+      consecutiveOnCount = 0;
+      blowerStartTime    = time(nullptr);
+      getDateTime();
+      Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
+      logToFile(true);   // one-time ON row, same pattern as the OFF summary row
+      sendData(true);
+      settleDelay(500);
+    }
+  } else {
+    // -- currently ON: look for a sustained drop --
+    if (currentVariance < OFF_THRESHOLD) {
+      consecutiveOffCount++;
+      consecutiveOnCount = 0;
+    } else {
+      consecutiveOffCount = 0;
+    }
+
+    if (consecutiveOffCount >= OFF_CONFIRM) {
+      blowerOn            = false;
+      consecutiveOffCount = 0;
+
+      time_t blowerStopTime = time(nullptr);
+      elapsedMinutes        = difftime(blowerStopTime, blowerStartTime) / 60.0;
+      dailyTotalMinutes    += elapsedMinutes;
+
+      // Persist immediately -- this is the point a battery change or
+      // brownout would otherwise wipe dailyTotalMinutes back to 0.
+      saveDailyTotal();
+
+      getDateTime();
+      Serial.printf(">>> Blower Detected: OFF @ %s\n", dtStamp.c_str());
+      Serial.printf("    Elapsed: %.2f min  Daily total: %.2f min\n",
+                    elapsedMinutes, dailyTotalMinutes);
+
+      logToFile(false);   // one-time OFF summary row — no more per-second OFF spam
+
+      sendData(false);
+      settleDelay(500);
+      sendAlert();
+      settleDelay(500);
     }
   }
   return blowerOn;
@@ -565,6 +631,16 @@ void checkSerial() {
 // ─────────────────────────────────────────────
 // Web Server
 // ─────────────────────────────────────────────
+void handleRoot() {
+  String ip = WiFi.localIP().toString();
+  String msg = "Heating System Monitor IV\n\n";
+  msg += "Available pages:\n";
+  msg += "  http://" + ip + "/status    - current state, variance, thresholds\n";
+  msg += "  http://" + ip + "/download  - download blower_log.csv\n";
+  msg += "  http://" + ip + "/clear     - clear the log file\n";
+  server.send(200, "text/plain", msg);
+}
+
 void handleDownload() {
   File f = LittleFS.open(LOG_FILE, FILE_READ);
   if (!f) { server.send(404, "text/plain", "Not found"); return; }
@@ -590,6 +666,7 @@ void handleStatus() {
   msg += "\nVariance: "            + String(currentVariance, 4);
   msg += "\nON_THRESHOLD: "        + String(ON_THRESHOLD);
   msg += "\nOFF_THRESHOLD: "       + String(OFF_THRESHOLD);
+  msg += "\nSHOCK_CEILING: "       + String(SHOCK_CEILING, 1);
   msg += "\nON_CONFIRM: "          + String(ON_CONFIRM);
   msg += "\nOFF_CONFIRM: "         + String(OFF_CONFIRM);
   msg += "\nC_On: "                + String(consecutiveOnCount);
@@ -600,6 +677,7 @@ void handleStatus() {
 }
 
 void initWebServer() {
+  server.on("/",         handleRoot);
   server.on("/download", handleDownload);
   server.on("/clear",    handleClear);
   server.on("/status",   handleStatus);
@@ -610,11 +688,11 @@ void initWebServer() {
 // Setup
 // ─────────────────────────────────────────────
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(1000);
   Serial.println("\n\n\n\nHeating System Monitor IV, ESP_NOW_Blower_MPU6050.ino — ESP32 Core 3.3.10\n");
-  Serial.printf("ON_THRESHOLD=%.1f  OFF_THRESHOLD=%.1f  ON_CONFIRM=%d  OFF_CONFIRM=%d\n",
-                ON_THRESHOLD, OFF_THRESHOLD, ON_CONFIRM, OFF_CONFIRM);
+  Serial.printf("ON_THRESHOLD=%.1f  OFF_THRESHOLD=%.1f  SHOCK_CEILING=%.1f  ON_CONFIRM=%d  OFF_CONFIRM=%d\n",
+                ON_THRESHOLD, OFF_THRESHOLD, SHOCK_CEILING, ON_CONFIRM, OFF_CONFIRM);
   Serial.println("Commands: r=rotate | d=delete all | l=list");
 
   logResetReason();   // tells you POWERON/BROWNOUT (battery change) vs. DEEPSLEEP/SW in Serial
@@ -650,7 +728,7 @@ void setup() {
   // No timeout set — this blocks indefinitely until configured, rather
   // than the portal vanishing after N seconds before there's time to
   // actually connect and finish the captive portal flow.
-  bool wifiOK = wm.autoConnect("HSM");
+  bool wifiOK = wm.autoConnect("HSM-IV-Setup");
 
   WiFi.mode(WIFI_MODE_APSTA);   // re-assert now that WiFiManager is done — ESP-NOW needs this
 
@@ -662,6 +740,12 @@ void setup() {
     Serial.println("\nWiFi connected: " + WiFi.localIP().toString());
     Serial.printf("Blower MAC: %s  Channel: %d\n",
                   WiFi.macAddress().c_str(), WiFi.channel());
+
+    String ip = WiFi.localIP().toString();
+    Serial.println("\nAvailable pages:");
+    Serial.println("  http://" + ip + "/status    - current state, variance, thresholds");
+    Serial.println("  http://" + ip + "/download  - download blower_log.csv");
+    Serial.println("  http://" + ip + "/clear     - clear the log file");
   }
 
   if (wifiOK) {
@@ -673,8 +757,8 @@ void setup() {
 
     // If a calendar day boundary passed while this node was powered
     // off (or on a previous boot), catch up now rather than relying
-    // on the loop() SECOND==0 check, which could be skipped entirely
-    // by a missed loop() pass or a boot that lands mid-day.
+    // on the loop() epoch-day check, which could otherwise leave a
+    // stale total sitting until the next loop() rollover check fires.
     uint32_t today = getCurrentEpochDay();
     if (lastResetEpochDay == 0 || today > lastResetEpochDay) {
       Serial.println("Day boundary crossed since last save -- resetting dailyTotalMinutes.");
@@ -733,6 +817,9 @@ void loop() {
     lastOneSecondCheck += 1000;
 
     getDateTime();
+    if (blowerIsOn) {
+      logToFile(true);   // continuous per-second logging while running
+    }
     // while OFF: no per-second file write — the single OFF summary row
     // was already written at the transition in detectBlower()
 
