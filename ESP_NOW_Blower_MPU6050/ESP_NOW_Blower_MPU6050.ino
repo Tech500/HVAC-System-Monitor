@@ -126,7 +126,7 @@ void initNTP() {
 // ESP-NOW Configuration
 // CHANNEL 0 = match home channel dynamically
 // ─────────────────────────────────────────────
-uint8_t masterAddress[] = { 0x3C, 0xE9, 0x0E, 0x84, 0xEE, 0x80 };  // kept from repo version
+uint8_t masterAddress[] = {0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };  // kept from repo version
 #define CHANNEL 0
 
 enum MessageType : uint8_t {
