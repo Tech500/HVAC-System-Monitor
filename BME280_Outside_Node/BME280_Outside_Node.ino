@@ -1,6 +1,14 @@
 /*  BME280_Outside_Node.ino
- September 05, 2026 @ 05:33 EDT
+ September 09 2026 @ 17:05 EDT
   ESP32 Core 3.3.10 Required!!! Earlier breaks compile!
+*/
+
+/*  BME280_Outside_Node.ino
+ September 06, 2026 @ 13:xx EDT
+  ESP32 Core 3.3.10 Required!!! Earlier breaks compile!
+
+  Added: reset-reason capture/logging (Serial only — use Arduino IDE's
+  Serial Monitor "copy" capture on the bench to catch anomalous resets).
 */
 
 #include <Arduino.h>
@@ -44,6 +52,14 @@ uint8_t CHANNEL = 0;
 // Flag stored in low-power RTC SRAM (survives ESP32 deep sleep)
 RTC_DATA_ATTR bool sxConfigured = false;
 RTC_DATA_ATTR uint32_t wakeCount = 0;
+
+// --- Reset-reason diagnostics (RTC_DATA_ATTR survives deep sleep AND
+//     brownout/watchdog/software resets, but is CLEARED by a true
+//     ESP_RST_POWERON. That makes wakeCount/resetEventCount useful
+//     evidence: if they read back 0 after an anomaly, it was likely
+//     an actual power interruption rather than a brownout/glitch.) ---
+RTC_DATA_ATTR uint32_t resetEventCount = 0;   // count of non-WOR (anomalous) resets since last true power-on
+RTC_DATA_ATTR uint8_t  lastResetReasonCode = 0;
 
 const float BME280_OUTSIDE_TEMP_CAL_OFFSET_F = +5.54;
 const float STATION_ELEVATION_FT = 791.0f;
@@ -99,6 +115,26 @@ public:
     return send(data, len);
   }
 };
+
+// -------------------------------------------------------------
+// Human-readable reset reason (esp_reset_reason_t -> string)
+// -------------------------------------------------------------
+const char *resetReasonToString(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_UNKNOWN:    return "Unknown";
+    case ESP_RST_POWERON:    return "Power-on (full power cycle)";
+    case ESP_RST_EXT:        return "External pin reset";
+    case ESP_RST_SW:         return "Software reset (esp_restart)";
+    case ESP_RST_PANIC:      return "Software panic / exception";
+    case ESP_RST_INT_WDT:    return "Interrupt watchdog";
+    case ESP_RST_TASK_WDT:   return "Task watchdog";
+    case ESP_RST_WDT:        return "Other watchdog";
+    case ESP_RST_DEEPSLEEP:  return "Deep sleep wake (normal WOR)";
+    case ESP_RST_BROWNOUT:   return "Brownout (power supply sag)";
+    case ESP_RST_SDIO:       return "SDIO reset";
+    default:                 return "Unrecognized reset reason";
+  }
+}
 
 // -------------------------------------------------------------
 // TRANSMIT ALERT FLAG TO HUB VIA ESP-NOW
@@ -314,6 +350,13 @@ void setup() {
   Serial.print("\n\n\nHVAC System Monitor - BME280_Outside_Node + LoRa WOR\n");
   Serial.println("with SX1262 rxDutyCycle\n\n");
 
+  // --- Capture reset reason as early as possible ---
+  esp_reset_reason_t resetReason = esp_reset_reason();
+  Serial.printf("[RESET] Reason: %s (code %d)\n", resetReasonToString(resetReason), (int)resetReason);
+  Serial.printf("[RESET] wakeCount at boot: %lu, resetEventCount: %lu\n",
+                (unsigned long)wakeCount, (unsigned long)resetEventCount);
+  lastResetReasonCode = (uint8_t)resetReason;
+
   // 2. Initialize SPI hardware pins BEFORE reading registers
   pinMode((gpio_num_t)RADIO_CS_PIN, OUTPUT);
   digitalWrite((gpio_num_t)RADIO_CS_PIN, HIGH);
@@ -340,6 +383,8 @@ void setup() {
   if (wakeCause == ESP_SLEEP_WAKEUP_EXT0) {
     uint32_t rtcPinState = rtc_gpio_get_level(GPIO_NUM_16);
     Serial.printf("[WAKE] EXT0 Triggered by GPIO 16 (RTC Level: %d)\n", rtcPinState);
+
+    wakeCount++;
 
     sxWakeupSPI();
     sxWaitBusy();
@@ -369,8 +414,16 @@ void setup() {
 
   // -------------------------------------------------------------
   // 2. SLOW PATH: COLD BOOT / BUTTON / IDE FLASH / RECOVERY
+  //    Reaching this point at all (i.e. wakeCause != EXT0) means
+  //    something other than a clean WOR wake brought the node up.
+  //    Serial Monitor's copy capture covers logging for bench work,
+  //    so just print it here for now.
   // -------------------------------------------------------------
   Serial.println("[INIT] Cold Boot active. Full initialization of the SX1262\n");
+
+  resetEventCount++;
+  Serial.printf("[RESET] Anomalous reset #%lu — reason: %s, wakeCount was %lu\n",
+                (unsigned long)resetEventCount, resetReasonToString(resetReason), (unsigned long)wakeCount);
 
   if(wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
     //Serial.println("Cold Boot");
