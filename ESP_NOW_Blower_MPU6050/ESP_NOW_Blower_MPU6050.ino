@@ -418,11 +418,15 @@ bool detectBlower() {
     else                                 { consecutiveOnCount = 0; }
  
     if (consecutiveOnCount >= ON_CONFIRM) {
-      blowerOn = true;
-      consecutiveOnCount = 0;
-      blowerStartTime = time(nullptr);
-      // … log + send the ON edge
-    }
+     blowerOn           = true;
+     consecutiveOnCount = 0;
+     blowerStartTime    = time(nullptr);
+     getDateTime();
+     Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
+     logToFile(true);        // <-- add: one-time ON row, same pattern as OFF
+     sendData(true);
+     settleDelay(500);
+   }
   } else {
     // —- currently ON: look for a sustained drop —-
     if (currentVariance < OFF_THRESHOLD) { consecutiveOffCount++; consecutiveOnCount = 0; }
