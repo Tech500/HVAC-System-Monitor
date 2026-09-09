@@ -48,7 +48,7 @@
    the check, and also self-corrects if the node was powered off
    across a midnight boundary.
    Write frequency: OFF transitions are infrequent (blower cycles), so
-   this stays well within NVS wear limits on a battery node.
+   this stays well within NVS wear limits on a battery node.  
 */
 
 #include <Arduino.h>
