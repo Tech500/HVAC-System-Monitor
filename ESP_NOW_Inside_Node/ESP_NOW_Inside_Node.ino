@@ -58,7 +58,7 @@ uint8_t hubMAC[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };  // Target Hub MAC
 uint8_t senderBmeMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };
 uint8_t senderBlowerMAC[] = { 0x9C, 0x13, 0x9E, 0xF2, 0x2A, 0xB4 };
 
-#define HUB_WIFI_CHANNEL 0
+#define HUB_WIFI_CHANNEL 11
 #define CHANNEL 0
 
 #define TEST_BUTTON_PIN 16  // 3-wire module: VCC, GND, signal -- idles LOW, HIGH on press
