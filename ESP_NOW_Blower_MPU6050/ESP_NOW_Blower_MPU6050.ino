@@ -51,60 +51,6 @@
    this stays well within NVS wear limits on a battery node.  
 */
 
-/* 
-   ESP_NOW_Blower_MPU6050.ino
-   September 10, 2026 @ 20:50 EDT
-
-  ESP-NOW, Verified ESP32 Core 3.3.10
-   MPU-6050 Accelerometer Vector Magnitude Variance Detection
-   I2C: SDA=GPIO5  SCL=GPIO4  Address: 0x68
-   Calibrated: OFF variance ~TBD | ON variance ~TBD | Threshold: 500.0 (tune on bench)
-   OFF_CONFIRM reduced to 5 — mechanical stop is clean, no acoustic bleed
-   Elapsed time computed via NTP difftime() — no secondsCounter drift
-   On OFF confirmation: sends MSG_BLOWER_STATE then MSG_ALERT_FLAG to receiver
-   FTP default user:  admin  password:  admin
-
-   --- CHANGE LOG ---
-   FTP RETR timeout fix: computeVariance() was blocking for
-   SAMPLE_COUNT * SAMPLE_DELAY_MS (64*5ms = 320ms) every single loop()
-   pass, unconditionally. That 320ms blackout meant ftpSrv.handleFTP()
-   never got serviced during an active data transfer, so FTP clients
-   timed out on RETR (LIST worked fine — it's fast, doesn't span the gap).
-   Fix: call ftpSrv.handleFTP() + server.handleClient() once per sample
-   INSIDE computeVariance()'s sampling loop, so FTP is serviced every
-   ~5ms instead of going dark for 320ms. Same interleave applied to the
-   two delay(500) blocks in detectBlower() after sendData()/sendAlert(),
-   since those are the same class of blocking gap, just rarer (only on
-   ON/OFF transitions).
-
-   Shock/ceiling filter added (Renzo's suggestion): sustained readings
-   above SHOCK_CEILING are treated as impact noise (stomping, drops)
-   rather than blower activity, and are excluded from the ON-detection
-   path in detectBlower(). Also added: root "/" page and boot-time
-   serial printout listing the available web pages by IP, and
-   SHOCK_CEILING included in the /status dump.
-
-   Update (July 12, 2026): NVS persistence added for dailyTotalMinutes.
-   This node is battery powered, so a battery change / brownout
-   previously wiped the plain RAM `dailyTotalMinutes` variable back to
-   0, and the receiver would faithfully mirror that zero to Sheets (the
-   receiver has no independent copy — it just relays whatever this node
-   sends). Now: dailyTotalMinutes + lastResetEpochDay are written to
-   NVS (Preferences, namespace "hsm4blower") on every OFF transition and
-   at the daily rollover. On boot, the value is restored from NVS
-   instead of starting at 0, and esp_reset_reason() is logged to Serial
-   so you can distinguish POWERON/BROWNOUT (battery change) from
-   DEEPSLEEP/SW resets in the log.
-   Midnight reset logic also changed from an exact-second match
-   (HOUR==0 && MINUTE==0 && SECOND==0, which a missed loop() pass
-   could skip entirely) to a stored-epoch-day comparison, which fires
-   exactly once regardless of what the clock reads at the moment of
-   the check, and also self-corrects if the node was powered off
-   across a midnight boundary.
-   Write frequency: OFF transitions are infrequent (blower cycles), so
-   this stays well within NVS wear limits on a battery node.
-*/
-
 
 #include <Arduino.h>
 #include <Wire.h>
