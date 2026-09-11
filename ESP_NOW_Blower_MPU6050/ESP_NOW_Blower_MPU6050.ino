@@ -1,5 +1,8 @@
 /* Heating System Monitor IV
    ESP_NOW_Blower_MPU6050.ino
+
+   Required!!!  ESP32 Core 3.3.10, if not; breaks compile.
+   
    September 11, 2026 @ 17:08 EDT Fixed
    ESP-NOW, Verified ESP32 Core 3.3.10
    MPU-6050 Accelerometer Vector Magnitude Variance Detection
