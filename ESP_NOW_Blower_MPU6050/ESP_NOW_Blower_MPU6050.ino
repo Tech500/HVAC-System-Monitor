@@ -1,6 +1,6 @@
 /* Heating System Monitor IV
    ESP_NOW_Blower_MPU6050.ino
-   September 10, 2026 @ 23:38 EDT
+   September 11, 2026 @ 17:08 EDT Fixed
    ESP-NOW, Verified ESP32 Core 3.3.10
    MPU-6050 Accelerometer Vector Magnitude Variance Detection
    I2C: SDA=GPIO5  SCL=GPIO4  Address: 0x68
@@ -112,6 +112,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_system.h>
+#include "esp32s3/rom/rtc.h"
 #include <ESP32_NOW.h>
 #include <LittleFS.h>
 #include <FTPServer.h>
@@ -352,8 +353,12 @@ void saveDailyTotal() {
 // Logs *why* the board booted -- lets you tell a battery change /
 // brownout apart from a deep-sleep wake or a code-push reset in Serial.
 void logResetReason() {
+
+  initLogging();
+
   esp_reset_reason_t reason = esp_reset_reason();
   const char* reasonStr;
+
   switch (reason) {
     case ESP_RST_POWERON:   reasonStr = "POWERON";   break;
     case ESP_RST_BROWNOUT:  reasonStr = "BROWNOUT";  break;
@@ -368,11 +373,12 @@ void logResetReason() {
 
   const char* RESET_LOG_FILE = "/boot_log.csv";
 
+  getDateTime();
+
   bool needsHeader = !LittleFS.exists(RESET_LOG_FILE);
   File f = LittleFS.open(RESET_LOG_FILE, FILE_APPEND);
-  if (f) {
-    if (needsHeader) f.println("MillisSinceBoot,ResetReason");
-    f.print(millis()); f.print(",");
+  if (f){ (dtStamp," ResetReason:  ");
+    f.print(dtStamp); f.print(",");
     f.println(reasonStr);
     f.close();
   }
@@ -719,14 +725,12 @@ void initWebServer() {
 // Setup
 // ─────────────────────────────────────────────
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(1000);
   Serial.println("\n\n\n\nHeating System Monitor IV, ESP_NOW_Blower_MPU6050.ino — ESP32 Core 3.3.10\n");
   Serial.printf("ON_THRESHOLD=%.1f  OFF_THRESHOLD=%.1f  ON_CONFIRM=%d  OFF_CONFIRM=%d\n",
                 ON_THRESHOLD, OFF_THRESHOLD, ON_CONFIRM, OFF_CONFIRM);
   Serial.println("Commands: r=rotate | d=delete all | l=list");
-
-  logResetReason();   // tells you POWERON/BROWNOUT (battery change) vs. DEEPSLEEP/SW in Serial
 
   // I2C: SDA=GPIO5  SCL=GPIO4
   Wire.begin(SDA, SCL);
@@ -741,8 +745,6 @@ void setup() {
   // If clipping observed, increase to ±4g: mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_4);
   mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_2);
   Serial.println("Accel range: ±2g");
-
-  initLogging();
 
   WiFi.setSleep(WIFI_PS_NONE);
   // NOTE: deliberately NOT setting WiFi.mode(WIFI_MODE_APSTA) here —
@@ -762,7 +764,7 @@ void setup() {
 
   WiFiManager wm;
 
-  wm.resetSettings();
+  //wm.resetSettings();
 
       bool res;
     // res = wm.autoConnect(); // auto generated AP name from chipid
@@ -789,6 +791,8 @@ void setup() {
 
   if (wifiOK) {
     initNTP();
+
+    logResetReason();   // tells you POWERON/BROWNOUT (battery change) vs. DEEPSLEEP/SW in Serial
 
     // Restore dailyTotalMinutes from NVS -- survives the battery change
     // that would otherwise silently reset it to 0.
