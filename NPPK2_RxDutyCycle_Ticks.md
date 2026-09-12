@@ -7,7 +7,7 @@ Three experiment Images below, one per tick configuration tested.
 
 ### Nordic PPK II Observation Image 01
 
-![Nordic PPK II Image 01](/Images/Image_01.png)
+![Nordic PPK II --OneDutyCycle 01](./Images/Image_01.png)
 
 #define RXDC_RX_TICKS       512UL  
 #define RXDC_SLEEP_TICKS  63488UL  
@@ -31,7 +31,7 @@ Three experiment Images below, one per tick configuration tested.
 
 ### Nordic PPK II Observation Image 02
 
-![Nordic PPK2 Observaton --OneDutyCycle 02](./HVAC%20rxDutyCycle/02%20One%20RxDutyCycle.png)
+![Nordic PPK2 Observaton --OneDutyCycle 02](./Images/Image_02.png)
 
 ### Measurements
 
@@ -54,7 +54,7 @@ Three experiment Images below, one per tick configuration tested.
 
 ### Nordic PPK II Observation Image 03
 
-![Nordic PPK2 Observaton --OneDutyCycle 03](./HVAC%20rxDutyCycle/03%20One%20RxDutyCycle.png)
+![Nordic PPK2 Observaton --OneDutyCycle 03](./Images/Image_03.png)
 
 ### Measurements
 
