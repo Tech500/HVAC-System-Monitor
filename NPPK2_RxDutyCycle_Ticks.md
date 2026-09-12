@@ -3,7 +3,7 @@
 Power-profiling notes for `SetRxDutyCycle` (rxPeriod / sleepPeriod, in 15.625 µs ticks) on the SX1262, captured with a Nordic PPK2. 
 Three experiment Images below, one per tick configuration tested.
 
-```
+
 
 ### Nordic PPK II Observation Image 01
 
