@@ -7,8 +7,7 @@ Three experiment Images below, one per tick configuration tested.
 
 ### Nordic PPK II Observation Image 01
 
-<img width="1404" height="700" alt="01 One RxDutyCycle" src="https://gist.github.com/user-attachments/assets/3ab6f1ff-467c-45a7-b2d6-bdd434881255" />
-### Measurements
+![Nordic PPK II ObservationOneDutyCycle 01](https://gist.github.com/user-attachments/assets/3ab6f1ff-467c-45a7-b2d6-bdd434881255)
 
 #define RXDC_RX_TICKS       512UL  
 #define RXDC_SLEEP_TICKS  63488UL  
