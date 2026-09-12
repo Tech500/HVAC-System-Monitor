@@ -1,0 +1,2 @@
+Serial Output of HVAC System Monitor; click to enlarge
+<img width="1676" height="1049" alt="BME280 Node Rx and TX" src="https://gist.github.com/user-attachments/assets/588969cc-74ec-4dbe-b34d-0c60d461ed1d" />
