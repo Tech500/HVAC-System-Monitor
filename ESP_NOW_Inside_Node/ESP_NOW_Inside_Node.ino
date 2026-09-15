@@ -1,5 +1,23 @@
 /* HVAC System Monitor
    ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
+   September 14, 2026 @ 20:16:02 EDT
+   ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
+   Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
+   as the BE280 Node.
+
+   --- LoRa merge, July 19, 2026 ---
+   Inside Node's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
+   BME280 Node is the one sitting in rxDutyCycle.  Inside Node only needs 
+   to send Wake On Radio (WOR), Collect data, and Log data locally and to 
+   perpetual Google Sheet; sending a WOR Preamble on the Blower None's alertFlag, 
+   The BME280 Node's actual BME280 sensor readings, reply comes back over  ESP-NOW 
+   (MSG_BME280), only the trigger mechanism changed, not the reply path.  Link params 
+   (SF7 / BW5125 / 2dBm) optimized for the real ~20ft link,  MUST MATCH the BME280 
+   Node's radio.begin() exactly.
+*/
+
+/* HVAC System Monitor
+   ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
    August 26, 2026 @ 14:02 EDT
    ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
    Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
@@ -54,30 +72,12 @@ bool powerOnReset = false;
 const String googleDeploymentID = "AKfycbz24Axc5Tcs4_bB6IWtMaCKp9BX6nsoZ11kprcCppLtSDnbyhW7F2MVX6roMZduF3x5sg";
 const String googleURL = "https://script.google.com/macros/s/" + googleDeploymentID + "/exec";
 
-uint8_t hubMAC[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };  // Target Hub MAC
+uint8_t masterAddress[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
 uint8_t senderBmeMAC[] = { 0xD0, 0xCF, 0x13, 0x0A, 0x48, 0x90 };
 uint8_t senderBlowerMAC[] = { 0x9C, 0x13, 0x9E, 0xF2, 0x2A, 0xB4 };
 
 #define HUB_WIFI_CHANNEL 11
 #define CHANNEL 0
-
-#define TEST_BUTTON_PIN 16  // 3-wire module: VCC, GND, signal -- idles LOW, HIGH on press
-
-// volatile variables modified inside the Interrupt Service Routine (ISR)
-volatile bool buttonPressed = false;
-volatile unsigned long lastInterruptTime = 0;
-const unsigned long debounceDelayMs = 250;  // Lockout window to prevent double-firing
-
-// Interrupt Service Routine (ISR) - Runs instantly on button press
-void IRAM_ATTR handleButtonInterrupt() {
-  unsigned long currentTime = millis();
-
-  // One-shot debounce guard: ignore triggers within lockout window
-  if (currentTime - lastInterruptTime > debounceDelayMs) {
-    buttonPressed = true;
-    lastInterruptTime = currentTime;
-  }
-}
 
 // ─────────────────────────────────────────────
 // BME280 (Inside) — replaces MCP9808
@@ -236,15 +236,7 @@ protected:
 // Global instance if needed persistently
 BME280Peer bmeNode(senderBmeMAC, CHANNEL, WIFI_IF_STA);
 
-
 bool sendAlertFlagToReceiver(bool alertFlag) {
-  BME280Peer bmeNode(senderBmeMAC, HUB_WIFI_CHANNEL);
-
-  if (!bmeNode.add_to_system()) {
-    Serial.println(F("[ESP-NOW] Failed to add hub peer"));
-    return false;
-  }
-
   AlertFlagPacket alertPacket = {};
   alertPacket.type = MSG_ALERT_FLAG;
   alertPacket.alert = alertFlag;
@@ -257,8 +249,6 @@ bool sendAlertFlagToReceiver(bool alertFlag) {
   } else {
     Serial.println(F("[ESP-NOW] Transmit failed"));
   }
-
-  bmeNode.remove_from_system();
 
   return result;
 }
@@ -589,17 +579,6 @@ void processIncomingPacket(const uint8_t *data, int len) {
   }
 }
 
-// Dedicated handler function called from loop()
-void processOneShotButton() {
-  if (buttonPressed) {
-    Serial.println("\n[TEST] Manual button press -- forcing WOR cycle");
-    // sensor reply still comes back over ESP-NOW (MSG_BME280), unchanged.
-    sendOutsideWakeRequest();
-    buttonPressed = false;
-  }
-  delay(50);
-}
-
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
@@ -608,12 +587,6 @@ void setup() {
   Serial.println("with SX1262 rxDutyCycle\n\n");
 
   Serial.println("Build: " __DATE__ " " __TIME__ "\n");
-
-  // Configure pin with internal pull-down (expects 3.3V when pressed)
-  pinMode(TEST_BUTTON_PIN, INPUT_PULLDOWN);
-
-  // Attach interrupt to trigger on RISING edge (LOW -> HIGH)
-  attachInterrupt(digitalPinToInterrupt(TEST_BUTTON_PIN), handleButtonInterrupt, RISING);
 
   pinMode(WRITE_LED_PIN, OUTPUT);
   digitalWrite(WRITE_LED_PIN, LOW);
@@ -709,8 +682,6 @@ void setup() {
 
 // ─── Loop State Machine ───────────────────────────────────────────────────────
 void loop() {
-
-  processOneShotButton();
 
   server.handleClient();
 
@@ -949,6 +920,7 @@ void saveState() {
   statePrefs.putDouble("dailyTot", dailyTotalMinutes);
   statePrefs.putInt("cycles", cyclesToday);
   statePrefs.putLong64("lastOff", (int64_t)lastOffEpoch);
+  statePrefs.putFloat("setpoint", thermostatSetpoint);   // add
   statePrefs.end();
 }
 
@@ -960,6 +932,7 @@ bool restoreState() {
     dailyTotalMinutes = statePrefs.getDouble("dailyTot", 0.0);
     cyclesToday = statePrefs.getInt("cycles", 0);
     lastOffEpoch = (time_t)statePrefs.getLong64("lastOff", 0);
+    thermostatSetpoint = statePrefs.getFloat("setpoint", 75.0);  // add
     if (cyclesToday > 0) {
       avgCycleMinutes = dailyTotalMinutes / (double)cyclesToday;
     }
