@@ -1,9 +1,6 @@
 /* Heating System Monitor IV
    ESP_NOW_Blower_MPU6050.ino
-
-   Required!!!  ESP32 Core 3.3.10, if not; breaks compile.
-   
-   September 11, 2026 @ 17:08 EDT Fixed
+   September 29, 2026 @ 07:00 EDT
    ESP-NOW, Verified ESP32 Core 3.3.10
    MPU-6050 Accelerometer Vector Magnitude Variance Detection
    I2C: SDA=GPIO5  SCL=GPIO4  Address: 0x68
@@ -13,7 +10,7 @@
    On OFF confirmation: sends MSG_BLOWER_STATE then MSG_ALERT_FLAG to receiver
    FTP default user:  admin  password:  admin
 
-   --- CHANGE LOG ---
+   --- CHANGE LOG (this revision) ---
    FTP RETR timeout fix: computeVariance() was blocking for
    SAMPLE_COUNT * SAMPLE_DELAY_MS (64*5ms = 320ms) every single loop()
    pass, unconditionally. That 320ms blackout meant ftpSrv.handleFTP()
@@ -26,34 +23,27 @@
    since those are the same class of blocking gap, just rarer (only on
    ON/OFF transitions).
 
-   Shock/ceiling filter added (Renzo's suggestion): sustained readings
-   above SHOCK_CEILING are treated as impact noise (stomping, drops)
-   rather than blower activity, and are excluded from the ON-detection
-   path in detectBlower(). Also added: root "/" page and boot-time
-   serial printout listing the available web pages by IP, and
-   SHOCK_CEILING included in the /status dump.
-
-   Update (July 12, 2026): NVS persistence added for dailyTotalMinutes.
-   This node is battery powered, so a battery change / brownout
-   previously wiped the plain RAM `dailyTotalMinutes` variable back to
-   0, and the receiver would faithfully mirror that zero to Sheets (the
-   receiver has no independent copy — it just relays whatever this node
-   sends). Now: dailyTotalMinutes + lastResetEpochDay are written to
-   NVS (Preferences, namespace "hsm4blower") on every OFF transition and
+   --- CHANGE LOG (July 12, 2026) ---
+   NVS persistence added for dailyTotalMinutes. This node is battery
+   powered, so a battery change / brownout previously wiped the plain
+   RAM `dailyTotalMinutes` variable back to 0, and the receiver would
+   faithfully mirror that zero to Sheets (the receiver has no
+   independent copy — it just relays whatever this node sends).
+   Now: dailyTotalMinutes + lastResetEpochDay are written to NVS
+   (Preferences, namespace "hsm4blower") on every OFF transition and
    at the daily rollover. On boot, the value is restored from NVS
-   instead of starting at 0, and esp_reset_reason() is logged to Serial
-   so you can distinguish POWERON/BROWNOUT (battery change) from
-   DEEPSLEEP/SW resets in the log.
+   instead of starting at 0, and esp_reset_reason() is logged to
+   Serial so you can distinguish POWERON/BROWNOUT (battery change)
+   from DEEPSLEEP/SW resets in the log.
    Midnight reset logic also changed from an exact-second match
    (HOUR==0 && MINUTE==0 && SECOND==0, which a missed loop() pass
-   could skip entirely) to a stored-epoch-day comparison, which fires
-   exactly once regardless of what the clock reads at the moment of
-   the check, and also self-corrects if the node was powered off
-   across a midnight boundary.
-   Write frequency: OFF transitions are infrequent (blower cycles), so
-   this stays well within NVS wear limits on a battery node.  
+   could skip entirely) to a stored-epoch-day comparison, which
+   fires exactly once regardless of what the clock reads at the
+   moment of the check, and also self-corrects if the node was
+   powered off across a midnight boundary.
+   Write frequency: OFF transitions are infrequent (blower cycles),
+   so this stays well within NVS wear limits on a battery node.
 */
-
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -61,7 +51,6 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_system.h>
-#include "esp32s3/rom/rtc.h"
 #include <ESP32_NOW.h>
 #include <LittleFS.h>
 #include <FTPServer.h>
@@ -74,8 +63,8 @@
 // I2C / MPU-6050
 // ─────────────────────────────────────────────
 // SDA = GPIO5   SCL = GPIO4
-#define SDA 5
-#define SCL 4
+#define SDA 3
+#define SCL 2
 
 MPU6050 mpu;
 
@@ -131,9 +120,8 @@ void initNTP() {
 // ESP-NOW Configuration
 // CHANNEL 0 = match home channel dynamically
 // ─────────────────────────────────────────────
-uint8_t masterAddress[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
-
-#define HUB_WIFI_CHANNEL 11                            
+uint8_t masterAddress[] = { 0xE4, 0x65, 0xB8, 0x20, 0xEC, 0xD8 };
+                            
 #define CHANNEL 0
 
 enum MessageType : uint8_t {
@@ -223,37 +211,6 @@ int         recordCount  = 0;
 bool        loggingActive = true;
 
 // ─────────────────────────────────────────────
-// LittleFS Logging
-// ─────────────────────────────────────────────
-void initLogging() {
-  if (!LittleFS.begin(true)) {
-    Serial.println("LittleFS mount failed");
-    loggingActive = false;
-    return;
-  }
-  if (!LittleFS.exists(LOG_FILE)) {
-    File f = LittleFS.open(LOG_FILE, FILE_WRITE);
-    if (f) {
-      f.println("Record,Timestamp,Variance,BlowerState,ElapsedMin,DailyTotalMin");
-      f.close();
-    } else {
-      loggingActive = false;
-    }
-  } else {
-    File f = LittleFS.open(LOG_FILE, "r");
-    if (f) {
-      while (f.available()) {
-        String line = f.readStringUntil('\n');
-        if (line.length() > 1) recordCount++;
-      }
-      f.close();
-      recordCount--;
-    }
-  }
-  Serial.printf("LittleFS OK — %d existing records\n", recordCount);
-}
-
-// ─────────────────────────────────────────────
 // Forward Declarations
 // ─────────────────────────────────────────────
 void   handleClear();
@@ -302,35 +259,19 @@ void saveDailyTotal() {
 // Logs *why* the board booted -- lets you tell a battery change /
 // brownout apart from a deep-sleep wake or a code-push reset in Serial.
 void logResetReason() {
-
-  initLogging();
-
   esp_reset_reason_t reason = esp_reset_reason();
   const char* reasonStr;
-
   switch (reason) {
-    case ESP_RST_POWERON:   reasonStr = "POWERON";   break;
-    case ESP_RST_BROWNOUT:  reasonStr = "BROWNOUT";  break;
-    case ESP_RST_DEEPSLEEP: reasonStr = "DEEPSLEEP"; break;
-    case ESP_RST_SW:        reasonStr = "SW_RESET";  break;
-    case ESP_RST_PANIC:     reasonStr = "PANIC";     break;
-    case ESP_RST_WDT:       reasonStr = "WATCHDOG";  break;
-    default:                reasonStr = "OTHER";     break;
+    case ESP_RST_POWERON:   reasonStr = "POWERON (power loss/battery change)"; break;
+    case ESP_RST_BROWNOUT:  reasonStr = "BROWNOUT (power loss)";               break;
+    case ESP_RST_DEEPSLEEP: reasonStr = "DEEPSLEEP wake";                      break;
+    case ESP_RST_SW:        reasonStr = "software reset";                     break;
+    case ESP_RST_PANIC:     reasonStr = "PANIC/crash";                        break;
+    case ESP_RST_WDT:       reasonStr = "watchdog";                           break;
+    default:                reasonStr = "other";                              break;
   }
   Serial.print("Boot reason: ");
   Serial.println(reasonStr);
-
-  const char* RESET_LOG_FILE = "/boot_log.csv";
-
-  getDateTime();
-
-  bool needsHeader = !LittleFS.exists(RESET_LOG_FILE);
-  File f = LittleFS.open(RESET_LOG_FILE, FILE_APPEND);
-  if (f){ (dtStamp," ResetReason:  ");
-    f.print(dtStamp); f.print(",");
-    f.println(reasonStr);
-    f.close();
-  }
 }
 
 // ─────────────────────────────────────────────
@@ -486,32 +427,32 @@ void settleDelay(unsigned long ms) {
 // to eliminate chatter observed when a single threshold sat
 // right at the boundary during a real transition.
 // ─────────────────────────────────────────────
-
-//Renzo Mischianti. found brace mismatch preventing compile
-
 bool detectBlower() {
   currentVariance = computeVariance();
 
   if (!blowerOn) {
-    // -- currently OFF: look for a sustained rise --
-    if (currentVariance >= ON_THRESHOLD) { consecutiveOnCount++; consecutiveOffCount = 0; }
-    else                                 { consecutiveOnCount = 0; }
-
+    if (currentVariance >= ON_THRESHOLD) {
+      consecutiveOnCount++;
+      consecutiveOffCount = 0;
+    } else {
+      consecutiveOnCount = 0;
+    }
     if (consecutiveOnCount >= ON_CONFIRM) {
       blowerOn           = true;
       consecutiveOnCount = 0;
       blowerStartTime    = time(nullptr);
       getDateTime();
       Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
-      logToFile(true);
       sendData(true);
       settleDelay(500);
     }
   } else {
-    // -- currently ON: look for a sustained drop --
-    if (currentVariance < OFF_THRESHOLD) { consecutiveOffCount++; consecutiveOnCount = 0; }
-    else                                 { consecutiveOffCount = 0; }
-
+    if (currentVariance < OFF_THRESHOLD) {
+      consecutiveOffCount++;
+      consecutiveOnCount = 0;
+    } else {
+      consecutiveOffCount = 0;
+    }
     if (consecutiveOffCount >= OFF_CONFIRM) {
       blowerOn            = false;
       consecutiveOffCount = 0;
@@ -526,7 +467,8 @@ bool detectBlower() {
       Serial.printf("    Elapsed: %.2f min  Daily total: %.2f min\n",
                     elapsedMinutes, dailyTotalMinutes);
 
-      logToFile(false);
+      logToFile(false);   // one-time OFF summary row — no more per-second OFF spam
+
       sendData(false);
       settleDelay(500);
       sendAlert();
@@ -534,6 +476,37 @@ bool detectBlower() {
     }
   }
   return blowerOn;
+}
+
+// ─────────────────────────────────────────────
+// LittleFS Logging
+// ─────────────────────────────────────────────
+void initLogging() {
+  if (!LittleFS.begin(true)) {
+    Serial.println("LittleFS mount failed");
+    loggingActive = false;
+    return;
+  }
+  if (!LittleFS.exists(LOG_FILE)) {
+    File f = LittleFS.open(LOG_FILE, FILE_WRITE);
+    if (f) {
+      f.println("Record,Timestamp,Variance,BlowerState,ElapsedMin,DailyTotalMin");
+      f.close();
+    } else {
+      loggingActive = false;
+    }
+  } else {
+    File f = LittleFS.open(LOG_FILE, "r");
+    if (f) {
+      while (f.available()) {
+        String line = f.readStringUntil('\n');
+        if (line.length() > 1) recordCount++;
+      }
+      f.close();
+      recordCount--;
+    }
+  }
+  Serial.printf("LittleFS OK — %d existing records\n", recordCount);
 }
 
 void logToFile(bool blowerState) {
@@ -674,14 +647,17 @@ void initWebServer() {
 // Setup
 // ─────────────────────────────────────────────
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   delay(1000);
   Serial.println("\n\n\n\nHeating System Monitor IV, ESP_NOW_Blower_MPU6050.ino — ESP32 Core 3.3.10\n");
   Serial.printf("ON_THRESHOLD=%.1f  OFF_THRESHOLD=%.1f  ON_CONFIRM=%d  OFF_CONFIRM=%d\n",
                 ON_THRESHOLD, OFF_THRESHOLD, ON_CONFIRM, OFF_CONFIRM);
   Serial.println("Commands: r=rotate | d=delete all | l=list");
 
+  logResetReason();   // tells you POWERON/BROWNOUT (battery change) vs. DEEPSLEEP/SW in Serial
+
   // I2C: SDA=GPIO5  SCL=GPIO4
+  Wire.setPins(SDA, SCL);
   Wire.begin(SDA, SCL);
   mpu.initialize();
   if (!mpu.testConnection()) {
@@ -694,6 +670,8 @@ void setup() {
   // If clipping observed, increase to ±4g: mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_4);
   mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_2);
   Serial.println("Accel range: ±2g");
+
+  initLogging();
 
   WiFi.setSleep(WIFI_PS_NONE);
   // NOTE: deliberately NOT setting WiFi.mode(WIFI_MODE_APSTA) here —
@@ -710,21 +688,7 @@ void setup() {
   // No timeout set — this blocks indefinitely until configured, rather
   // than the portal vanishing after N seconds before there's time to
   // actually connect and finish the captive portal flow.
-
-  WiFiManager wm;
-
-  //wm.resetSettings();
-
-      bool res;
-    // res = wm.autoConnect(); // auto generated AP name from chipid
-    // res = wm.autoConnect("AutoConnectAP"); // anonymous ap
-    res = wm.autoConnect("HSM","password"); // password protected ap
-
-    if(!res) {
-        Serial.println("Failed to connect");
-        // ESP.restart();
-    }
-  bool wifiOK = wm.autoConnect("HSM","password");
+  bool wifiOK = wm.autoConnect("HSM");
 
   WiFi.mode(WIFI_MODE_APSTA);   // re-assert now that WiFiManager is done — ESP-NOW needs this
 
@@ -740,8 +704,6 @@ void setup() {
 
   if (wifiOK) {
     initNTP();
-
-    logResetReason();   // tells you POWERON/BROWNOUT (battery change) vs. DEEPSLEEP/SW in Serial
 
     // Restore dailyTotalMinutes from NVS -- survives the battery change
     // that would otherwise silently reset it to 0.
@@ -809,6 +771,9 @@ void loop() {
     lastOneSecondCheck += 1000;
 
     getDateTime();
+    if (blowerIsOn) {
+      logToFile(true);   // continuous per-second logging while running
+    }
     // while OFF: no per-second file write — the single OFF summary row
     // was already written at the transition in detectBlower()
 
