@@ -30,7 +30,6 @@
 
 #define WAKEUP_PIN GPIO_NUM_16
 
-#define BOARD_LED 37
 #define LED_ON HIGH
 #define LED_OFF LOW
 
