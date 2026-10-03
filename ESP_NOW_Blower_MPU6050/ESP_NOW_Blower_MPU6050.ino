@@ -398,29 +398,25 @@ bool detectBlower() {
   currentVariance = computeVariance();
 
   if (!blowerOn) {
-    if (currentVariance >= ON_THRESHOLD) {
-      consecutiveOnCount++;
-      consecutiveOffCount = 0;
-    } else {
+    // -- currently OFF: look for a sustained rise --
+    if (currentVariance >= ON_THRESHOLD) { consecutiveOnCount++; consecutiveOffCount = 0; }
+    else                                 { consecutiveOnCount = 0; }
+
+    if (consecutiveOnCount >= ON_CONFIRM) {
+      blowerOn           = true;
       consecutiveOnCount = 0;
+      blowerStartTime    = time(nullptr);
+      getDateTime();
+      Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
+      logToFile(true);
+      sendData(true);
+      settleDelay(500);
     }
-   
-   if (consecutiveOnCount >= ON_CONFIRM) {
-     blowerOn           = true;
-     consecutiveOnCount = 0;
-     blowerStartTime    = time(nullptr);
-     getDateTime();
-     Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
-     logToFile(true);        // <-- add: one-time ON row, same pattern as OFF
-     sendData(true);
-     settleDelay(500);
-   } else {
-    if (currentVariance < OFF_THRESHOLD) {
-      consecutiveOffCount++;
-      consecutiveOnCount = 0;
-    } else {
-      consecutiveOffCount = 0;
-    }
+  } else {
+    // -- currently ON: look for a sustained drop --
+    if (currentVariance < OFF_THRESHOLD) { consecutiveOffCount++; consecutiveOnCount = 0; }
+    else                                 { consecutiveOffCount = 0; }
+
     if (consecutiveOffCount >= OFF_CONFIRM) {
       blowerOn            = false;
       consecutiveOffCount = 0;
@@ -435,8 +431,7 @@ bool detectBlower() {
       Serial.printf("    Elapsed: %.2f min  Daily total: %.2f min\n",
                     elapsedMinutes, dailyTotalMinutes);
 
-      logToFile(false);   // one-time OFF summary row — no more per-second OFF spam
-
+      logToFile(false);
       sendData(false);
       settleDelay(500);
       sendAlert();
@@ -740,7 +735,7 @@ void loop() {
 
     getDateTime();
     if (blowerIsOn) {
-      logToFile(true);   // continuous per-second logging while running
+      //logToFile(true);   // continuous per-second logging while running
     }
     // while OFF: no per-second file write — the single OFF summary row
     // was already written at the transition in detectBlower()
