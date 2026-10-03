@@ -398,25 +398,29 @@ bool detectBlower() {
   currentVariance = computeVariance();
 
   if (!blowerOn) {
-    // -- currently OFF: look for a sustained rise --
-    if (currentVariance >= ON_THRESHOLD) { consecutiveOnCount++; consecutiveOffCount = 0; }
-    else                                 { consecutiveOnCount = 0; }
-
-    if (consecutiveOnCount >= ON_CONFIRM) {
-      blowerOn           = true;
+    if (currentVariance >= ON_THRESHOLD) {
+      consecutiveOnCount++;
+      consecutiveOffCount = 0;
+    } else {
       consecutiveOnCount = 0;
-      blowerStartTime    = time(nullptr);
-      getDateTime();
-      Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
-      logToFile(true);
-      sendData(true);
-      settleDelay(500);
     }
-  } else {
-    // -- currently ON: look for a sustained drop --
-    if (currentVariance < OFF_THRESHOLD) { consecutiveOffCount++; consecutiveOnCount = 0; }
-    else                                 { consecutiveOffCount = 0; }
-
+   
+   if (consecutiveOnCount >= ON_CONFIRM) {
+     blowerOn           = true;
+     consecutiveOnCount = 0;
+     blowerStartTime    = time(nullptr);
+     getDateTime();
+     Serial.println(">>> Blower Detected: ON  @ " + dtStamp);
+     logToFile(true);        // <-- add: one-time ON row, same pattern as OFF
+     sendData(true);
+     settleDelay(500);
+   } else {
+    if (currentVariance < OFF_THRESHOLD) {
+      consecutiveOffCount++;
+      consecutiveOnCount = 0;
+    } else {
+      consecutiveOffCount = 0;
+    }
     if (consecutiveOffCount >= OFF_CONFIRM) {
       blowerOn            = false;
       consecutiveOffCount = 0;
@@ -431,7 +435,8 @@ bool detectBlower() {
       Serial.printf("    Elapsed: %.2f min  Daily total: %.2f min\n",
                     elapsedMinutes, dailyTotalMinutes);
 
-      logToFile(false);
+      logToFile(false);   // one-time OFF summary row — no more per-second OFF spam
+
       sendData(false);
       settleDelay(500);
       sendAlert();
