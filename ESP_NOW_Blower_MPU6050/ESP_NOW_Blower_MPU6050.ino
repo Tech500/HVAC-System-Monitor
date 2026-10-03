@@ -672,6 +672,12 @@ void setup() {
     // that would otherwise silently reset it to 0.
     loadDailyTotal();
 
+  if (dailyTotalMinutes < 0 || dailyTotalMinutes > 1440) {
+     Serial.println("NVS dailyTotal out of range -- resetting to 0");
+     dailyTotalMinutes = 0.0;
+     saveDailyTotal();
+  }
+
     // If a calendar day boundary passed while this node was powered
     // off (or on a previous boot), catch up now rather than relying
     // on the loop() SECOND==0 check, which could be skipped entirely
