@@ -1,37 +1,10 @@
 /* HVAC System Monitor
    ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
-   September 14, 2026 @ 20:16:02 EDT
+   October 2, 2026 @ 2130 EDT
    ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
    Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
-   as the BE280 Node.
+   as the BME280 Node.
 
-   --- LoRa merge, July 19, 2026 ---
-   Inside Node's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
-   BME280 Node is the one sitting in rxDutyCycle.  Inside Node only needs 
-   to send Wake On Radio (WOR), Collect data, and Log data locally and to 
-   perpetual Google Sheet; sending a WOR Preamble on the Blower None's alertFlag, 
-   The BME280 Node's actual BME280 sensor readings, reply comes back over  ESP-NOW 
-   (MSG_BME280), only the trigger mechanism changed, not the reply path.  Link params 
-   (SF7 / BW5125 / 2dBm) optimized for the real ~20ft link,  MUST MATCH the BME280 
-   Node's radio.begin() exactly.
-*/
-
-/* HVAC System Monitor
-   ESP_NOW_Inside_Node.ino with temperature Offset + LoRa WOR trigger
-   August 26, 2026 @ 14:02 EDT
-   ESP32 Core 3.3.10 Required!!!  Earlier Core wll break compile!!!
-   Now runs on EoRa-S3-900TB (ESP32-S3 + onboard SX1262) -- same board
-   as the BE280 Node.
-
-   --- LoRa merge, July 19, 2026 ---
-   Inside Node's LoRa radio is TRANSMIT-ONLY -- it never listens over LoRa. The
-   BME280 Node is the one sitting in rxDutyCycle.  Inside Node only needs 
-   to send Wake On Radio (WOR), Collect data, and Log data locally and to 
-   perpetual Google Sheet; sending a WOR Preamble on the Blower None's alertFlag, 
-   The BME280 Node's actual BME280 sensor readings, reply comes back over  ESP-NOW 
-   (MSG_BME280), only the trigger mechanism changed, not the reply path.  Link params 
-   (SF7 / BW5125 / 2dBm) optimized for the real ~20ft link,  MUST MATCH the BME280 
-   Node's radio.begin() exactly.
 */
 
 #include <Arduino.h>
@@ -51,9 +24,16 @@
 #include "esp_system.h"  // esp_reset_reason() -- for reset_log.txt
 #include <Preferences.h>
 
-// ─── LoRa (EoRa-S3-900TB onboard SX1262) ─────────────────────────────────────
-#define EoRa_PI_V1
-#include "boards.h"
+// ─── LoRa (EoRa-S3-900TB Pin defines) ─────────────────────────────────────
+#define RADIO_SCLK_PIN              5
+#define RADIO_MISO_PIN              3
+#define RADIO_MOSI_PIN              6
+#define RADIO_CS_PIN                7
+#define RADIO_DIO1_PIN              33
+#define RADIO_BUSY_PIN              34
+#define RADIO_RST_PIN               8
+
+
 #include <RadioLib.h>
 #include <SPI.h>
 
@@ -584,8 +564,7 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.print("\n\nHVAC System Monitor - ESP_NOW_Receiver + LoRa WOR\n");
-  Serial.println("with SX1262 rxDutyCycle\n\n");
-
+ 
   Serial.println("Build: " __DATE__ " " __TIME__ "\n");
 
   pinMode(WRITE_LED_PIN, OUTPUT);
