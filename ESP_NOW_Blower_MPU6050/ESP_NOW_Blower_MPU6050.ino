@@ -611,7 +611,7 @@ void initWebServer() {
 // ─────────────────────────────────────────────
 void setup() {
   Serial.begin(9600);
-  delay(1000);
+  delay(1500);
   Serial.println("\n\n\n\nHeating System Monitor IV, ESP_NOW_Blower_MPU6050.ino — ESP32 Core 3.3.10\n");
   Serial.printf("ON_THRESHOLD=%.1f  OFF_THRESHOLD=%.1f  ON_CONFIRM=%d  OFF_CONFIRM=%d\n",
                 ON_THRESHOLD, OFF_THRESHOLD, ON_CONFIRM, OFF_CONFIRM);
