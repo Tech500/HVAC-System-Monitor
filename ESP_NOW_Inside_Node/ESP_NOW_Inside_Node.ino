@@ -42,8 +42,8 @@ SX1262 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUS
 
 #define WRITE_LED_PIN 23  //LittleFS Status LED  ON = Writing
 
-const char *ssid = "R2D2";
-const char *password = "Sky7388500";
+const char *ssid = "ssid";
+const char *password = "password";
 
 //Flag to prevent reset
 bool powerOnReset = false;
