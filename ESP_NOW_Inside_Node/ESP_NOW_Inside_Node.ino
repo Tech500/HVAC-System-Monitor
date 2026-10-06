@@ -49,7 +49,7 @@ const char *password = "password";
 bool powerOnReset = false;
 
 // ─── GOOGLE DEPLOYMENT ID ────────────────────────────────────────────────────
-const String googleDeploymentID = "AKfycbz24Axc5Tcs4_bB6IWtMaCKp9BX6nsoZ11kprcCppLtSDnbyhW7F2MVX6roMZduF3x5sg";
+const String googleDeploymentID = "removed for security";
 const String googleURL = "https://script.google.com/macros/s/" + googleDeploymentID + "/exec";
 
 uint8_t masterAddress[] = { 0x1C, 0xDB, 0xD4, 0x85, 0x6E, 0x9C };
